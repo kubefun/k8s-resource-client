@@ -1,2 +1,2 @@
 # k8s-resource-client
-A library for access Kubernetes cluster resources.
+A library for interacting with Kubernetes API Resources and displaying Kubernetes Objects.
