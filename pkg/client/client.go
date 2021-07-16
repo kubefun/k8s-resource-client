@@ -13,9 +13,6 @@ type Client struct {
 	SkipSubjectAccessChecks bool
 }
 
-func (c Client) Get() {
-}
-
 func NewClient(options ...ClientOption) *Client {
 	c := &Client{
 		ResourceMode:            Auto,
