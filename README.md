@@ -4,7 +4,7 @@ The goals of the `k8s-resource-client` library is to create an out-of-cluster cl
 
 ## Namespaces
 
-Namespaces are treated as a special resource and can have their mode set to `auto` (default) or `explicit`.
+Namespaces are treated as a special resource and can have their mode set to `auto` (default) or `explicit` indpendently of the mode set for other resources.
 
 ## Modes of Operation
 
