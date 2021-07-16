@@ -12,11 +12,11 @@ Minimal RBAC requirements for this client are the `List` and `Watch` verbs for t
 
 ### Auto (default)
 
-In greedy mode the client will do best effort to discover Kubernetes resources. After discovering the resources a subject access review will be created for every discovered resource unless that behavior has been explicitly disabled.
+In `auto` mode the client will do best effort to discover Kubernetes resources. After discovering the resources a subject access review will be created for every discovered resource unless that behavior has been explicitly disabled.
 
 ### Explicit
 
-In explicit mode the client will be provided a list of resources. An attempt to query any resources not configured when in explict mode will produce a `ResourceNotSynced` error.
+In explicit mode the client will be provided a list of resources. An attempt to query any resources not configured when in explict mode will produce a `ResourceNotSynced` error. For each resource listed a subject access review will be created unless that behavior has been explicitly disabled.
 
 ## Configurable Options
 
