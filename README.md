@@ -1,6 +1,6 @@
 # k8s-resource-client
 
-The goals for the `k8s-resource-client` is to create an out-of-cluster client experience that enables easily querying up-to-date resources from a Kubernetes cluster while dealing with the class of concerns around API authorization. To do this, the client has two modes of operation `auto` and `explicit`. In both cases, the `auth.v1.SelfSubjectAccessReview` API will be used to validate that a minimal set of access is provided for a resource. If that minimal access is not allowed with the currently configured credentials the resource will be marked as `FailedSubjectAccessReview` and attempts to fetch object(s) for that resource endpoint will return an nil response and a typed error containing the details of the failure.
+The goals of the `k8s-resource-client` library is to create an out-of-cluster client experience that enables easily querying up-to-date resources from a Kubernetes cluster while dealing with the class of concerns around API authorization. To do this, the client has two modes of operation `auto` and `explicit`. In both cases, the `auth.v1.SelfSubjectAccessReview` API will be used to validate that a minimal set of access is provided for a resource. If that minimal access is not allowed with the currently configured credentials the resource will be marked as `FailedSubjectAccessReview` and attempts to fetch object(s) for that resource endpoint will return an nil response and a typed error containing the details of the failure.
 
 ## Namespaces
 
