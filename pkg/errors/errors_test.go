@@ -1,6 +1,8 @@
 package errors_test
 
 import (
+	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -32,4 +34,18 @@ func TestNilRESTConfigError(t *testing.T) {
 
 	assert.NotNil(t, err)
 	assert.Equal(t, err.Error(), "NilRESTConfig - cannot create client")
+}
+
+func TestK8SNewForConfig(t *testing.T) {
+	var err error
+	err = &errors.K8SNewForConfig{Err: fmt.Errorf("test")}
+
+	assert.NotNil(t, err)
+	assert.Equal(t, err.Error(), "K8SNewForConfig - test")
+
+	err = errors.NewK8SNewForConfig(context.TODO(), nil)
+	assert.Nil(t, err)
+
+	err = errors.NewK8SNewForConfig(context.TODO(), fmt.Errorf("test"))
+	assert.EqualError(t, err, "K8SNewForConfig - test")
 }

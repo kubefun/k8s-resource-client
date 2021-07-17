@@ -1,6 +1,9 @@
 package errors
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
 type FailedSubjectAccessCheck struct {
 	Resource string
@@ -24,4 +27,19 @@ type NilRESTConfig struct {
 
 func (e *NilRESTConfig) Error() string {
 	return "NilRESTConfig - cannot create client"
+}
+
+type K8SNewForConfig struct {
+	Err error
+}
+
+func (e *K8SNewForConfig) Error() string {
+	return fmt.Sprintf("K8SNewForConfig - %s", e.Err)
+}
+
+func NewK8SNewForConfig(_ context.Context, err error) error {
+	if err != nil {
+		return &K8SNewForConfig{Err: err}
+	}
+	return nil
 }

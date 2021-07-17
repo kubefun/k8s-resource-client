@@ -1,7 +1,11 @@
 package client
 
 import (
+	"context"
+	"sync"
+
 	"go.uber.org/zap"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
 	"github.com/wwitzel3/k8s-resource-client/pkg/errors"
@@ -21,9 +25,14 @@ type Client struct {
 	SkipSubjectAccessChecks bool
 	RESTConfig              *rest.Config
 	Logger                  *zap.Logger
+
+	ClientsetFn func(context.Context, *rest.Config) (*kubernetes.Clientset, error)
+	clientset   *kubernetes.Clientset
+
+	mu sync.Mutex
 }
 
-func NewClient(options ...ClientOption) (*Client, error) {
+func NewClient(ctx context.Context, options ...ClientOption) (*Client, error) {
 	defer logging.Logger.Sync()
 
 	c := &Client{
@@ -31,30 +40,66 @@ func NewClient(options ...ClientOption) (*Client, error) {
 		NamespaceMode:           Auto,
 		SkipSubjectAccessChecks: false,
 		Logger:                  logging.Logger,
+		ClientsetFn:             NewClientset,
 	}
 
 	for _, opt := range options {
 		opt(c)
 	}
 
-	if c.RESTConfig == nil {
-		return nil, &errors.NilRESTConfig{}
-	} else {
-		if c.RESTConfig.QPS < 400 {
-			c.Logger.Warn("config QPS below 400",
-				// key-value pairs
-				zap.String("recommended", ">=400"),
-				zap.Float32("qps", c.RESTConfig.QPS),
-			)
-		}
-		if c.RESTConfig.Burst < 800 {
-			c.Logger.Warn("config Burst below 800",
-				// key-value pairs
-				zap.String("recommended", ">=800"),
-				zap.Int("burst", c.RESTConfig.Burst),
-			)
-		}
+	if err := CheckRestConfig(ctx, c.RESTConfig, c.Logger); err != nil {
+		return nil, err
 	}
 
+	clientset, err := c.ClientsetFn(ctx, c.RESTConfig)
+	if err != nil {
+		return nil, err
+	}
+	c.clientset = clientset
+
 	return c, nil
+}
+
+func (c *Client) UpdateRESTConfig(ctx context.Context, config *rest.Config) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if err := CheckRestConfig(ctx, config, c.Logger); err != nil {
+		return err
+	}
+	c.RESTConfig = config
+
+	clientset, err := c.ClientsetFn(ctx, c.RESTConfig)
+	if err != nil {
+		return err
+	}
+	c.clientset = clientset
+	return nil
+}
+
+func CheckRestConfig(ctx context.Context, config *rest.Config, logger *zap.Logger) error {
+	if config == nil {
+		return &errors.NilRESTConfig{}
+	} else {
+		if config.QPS < 400 {
+			logger.Warn("rest.Config QPS below 400",
+				// key-value pairs
+				zap.String("recommended", ">=400"),
+				zap.Float32("qps", config.QPS),
+			)
+		}
+		if config.Burst < 800 {
+			logger.Warn("rest.Config Burst below 800",
+				// key-value pairs
+				zap.String("recommended", ">=800"),
+				zap.Int("burst", config.Burst),
+			)
+		}
+		return nil
+	}
+}
+
+func NewClientset(ctx context.Context, config *rest.Config) (*kubernetes.Clientset, error) {
+	clientset, err := kubernetes.NewForConfig(config)
+	return clientset, errors.NewK8SNewForConfig(ctx, err)
 }
