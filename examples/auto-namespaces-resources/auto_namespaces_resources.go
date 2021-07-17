@@ -44,14 +44,15 @@ func main() {
 		panic(err)
 	}
 
-	if err := r6eClient.AutoDiscoverResources(ctx, client, r6eCache.Namespaces...); err != nil {
+	if err := r6eClient.AutoDiscoverResources(ctx, client); err != nil {
 		panic(err)
 	}
 
-	for _, namespace := range r6eCache.Namespaces {
-		resources := r6eCache.Resources.GetResources(namespace)
-		fmt.Printf("namespace: %s, resource_count: %d\n", namespace, len(resources))
-	}
+	resources := r6eCache.Resources.GetResources("namespace")
+	fmt.Printf("namespace resource count: %d\n", len(resources))
+
+	resources = r6eCache.Resources.GetResources("cluster")
+	fmt.Printf("cluster resource count: %d\n", len(resources))
 }
 
 func homeDir() string {

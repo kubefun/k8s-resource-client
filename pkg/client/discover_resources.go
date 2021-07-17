@@ -2,9 +2,6 @@ package client
 
 import (
 	"context"
-	"sync"
-
-	"go.uber.org/zap"
 
 	"github.com/wwitzel3/k8s-resource-client/pkg/cache"
 	"github.com/wwitzel3/k8s-resource-client/pkg/errors"
@@ -14,31 +11,20 @@ import (
 // AutoDiscoverResources makes a best-effort attempt using the discover client to list all the resources for all of the namespaces
 // that were provided and update the cache.ResourceMap. This operation is expensive on large clusters and should be considered part
 // of a startup routine and a long-duration periodic task.
-func AutoDiscoverResources(ctx context.Context, client *Client, namespaces ...string) error {
-	wg := sync.WaitGroup{}
-
-	discoveryErr := &errors.ResourceDiscoveryError{}
-
-	for _, n := range namespaces {
-		wg.Add(1)
-		namespace := n
-		go func() {
-			defer wg.Done()
-			client.Logger.Info("discovering resources",
-				zap.String("namespace", namespace),
-			)
-			resources, err := ResourceListForNamespace(ctx, client, namespace)
-			if err != nil {
-				discoveryErr.Add(err)
-				return
-			}
-			cache.Resources.AddResources(namespace, resources...)
-		}()
+func AutoDiscoverResources(ctx context.Context, client *Client) error {
+	client.Logger.Info("discovering resources")
+	resources, err := ResourceListForNamespace(ctx, client, "")
+	if err != nil {
+		return &errors.ResourceDiscoveryError{Err: []error{err}}
 	}
-	wg.Wait()
-	if len(discoveryErr.Err) > 0 {
-		return discoveryErr
+	for _, resource := range resources {
+		if resource.APIResource.Namespaced {
+			cache.Resources.AddResources("namespace", resource)
+		} else {
+			cache.Resources.AddResources("cluster", resource)
+		}
 	}
+
 	return nil
 }
 
