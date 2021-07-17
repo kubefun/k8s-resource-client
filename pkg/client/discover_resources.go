@@ -5,7 +5,7 @@ import (
 
 	"github.com/wwitzel3/k8s-resource-client/pkg/cache"
 	"github.com/wwitzel3/k8s-resource-client/pkg/errors"
-	"github.com/wwitzel3/subjectaccess/pkg/subjectaccess"
+	"github.com/wwitzel3/k8s-resource-client/pkg/resource"
 )
 
 // AutoDiscoverResources makes a best-effort attempt using the discover client to list all the resources for all of the namespaces
@@ -30,8 +30,8 @@ func AutoDiscoverResources(ctx context.Context, client *Client) error {
 
 // ResourceListForNamespace uses a Discovery Client and attempts to list all of the known resources for the given namespace.
 // This method can be used to populate initial resource lists as well as refresh existing caches.
-func ResourceListForNamespace(ctx context.Context, client *Client, namespace string) ([]subjectaccess.Resource, error) {
-	scopedResources, err := subjectaccess.ResourceList(ctx, client.clientset.DiscoveryClient, namespace)
+func ResourceListForNamespace(ctx context.Context, client *Client, namespace string) ([]resource.Resource, error) {
+	scopedResources, err := resource.ResourceList(ctx, client.clientset.DiscoveryClient, namespace)
 	if err != nil {
 		// TODO: consider if we want a typed-error
 		return nil, err

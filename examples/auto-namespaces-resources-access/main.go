@@ -48,11 +48,21 @@ func main() {
 		panic(err)
 	}
 
-	resources := r6eCache.Resources.GetResources("namespace")
-	fmt.Printf("namespace resource count: %d\n", len(resources))
+	nsResources := r6eCache.Resources.GetResources("namespace")
+	fmt.Printf("namespace resource count: %d\n", len(nsResources))
 
-	resources = r6eCache.Resources.GetResources("cluster")
-	fmt.Printf("cluster resource count: %d\n", len(resources))
+	cResources := r6eCache.Resources.GetResources("cluster")
+	fmt.Printf("cluster resource count: %d\n", len(cResources))
+
+	// No resources provided this will init an empty access cache, all checks will be false
+	if err := r6eClient.AutoDiscoverAccess(ctx, client); err != nil {
+		panic(err)
+	}
+
+	// Update the access cache for the first namespaced resource and check if we can list/watch it.
+	r6eClient.UpdateResourceAccess(ctx, client, nsResources[0])
+	fmt.Println(fmt.Sprintf("check list,watch access for %v: ", nsResources[0]), r6eCache.Access.AllowedAll(nsResources[0], []string{"list", "watch"}))
+
 }
 
 func homeDir() string {

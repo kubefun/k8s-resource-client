@@ -3,15 +3,17 @@ package cache
 import (
 	"sync"
 
-	"github.com/wwitzel3/subjectaccess/pkg/subjectaccess"
+	"github.com/wwitzel3/k8s-resource-client/pkg/resource"
 )
 
 var Resources *ResourceCache
 var Namespaces []string
+var Access resource.ResourceAccess
 
 func init() {
 	Resources = NewResourceCache()
 	Namespaces = make([]string, 0)
+	Access = nil
 }
 
 func NewResourceCache() *ResourceCache {
@@ -24,28 +26,28 @@ type ResourceCache struct {
 	_map *sync.Map
 }
 
-func (r *ResourceCache) AddResources(namespace string, resources ...subjectaccess.Resource) {
-	v, loaded := r._map.LoadOrStore(namespace, resources)
+func (r *ResourceCache) AddResources(key string, resources ...resource.Resource) {
+	v, loaded := r._map.LoadOrStore(key, resources)
 	if loaded {
-		existingResources, _ := v.([]subjectaccess.Resource)
+		existingResources, _ := v.([]resource.Resource)
 		existingResources = append(existingResources, resources...)
 		existingResources = unique(existingResources)
-		r._map.Store(namespace, existingResources)
+		r._map.Store(key, existingResources)
 	}
 }
 
-func (r *ResourceCache) GetResources(namespace string) []subjectaccess.Resource {
-	v, loaded := r._map.Load(namespace)
+func (r *ResourceCache) GetResources(key string) []resource.Resource {
+	v, loaded := r._map.Load(key)
 	if !loaded {
-		return []subjectaccess.Resource{}
+		return []resource.Resource{}
 	}
-	resources, _ := v.([]subjectaccess.Resource)
+	resources, _ := v.([]resource.Resource)
 	return resources
 }
 
-func unique(resources []subjectaccess.Resource) []subjectaccess.Resource {
+func unique(resources []resource.Resource) []resource.Resource {
 	keys := make(map[string]struct{})
-	list := []subjectaccess.Resource{}
+	list := []resource.Resource{}
 	for _, resource := range resources {
 		if _, value := keys[resource.Key()]; !value {
 			keys[resource.Key()] = struct{}{}
