@@ -1,6 +1,7 @@
 package client_test
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -8,6 +9,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
 	"github.com/stretchr/testify/assert"
@@ -17,8 +19,18 @@ import (
 )
 
 func TestNewClientNoRestConfig(t *testing.T) {
-	_, err := client.NewClient()
+	_, err := client.NewClient(context.TODO())
 	assert.ErrorIs(t, err, &errors.NilRESTConfig{})
+}
+
+func TestNewClientClientsetFnErr(t *testing.T) {
+	cFn := func(ctx context.Context, _ *rest.Config) (*kubernetes.Clientset, error) {
+		return nil, errors.NewK8SNewForConfig(ctx, fmt.Errorf("bad clientset"))
+	}
+	config := &rest.Config{QPS: 400, Burst: 800}
+
+	_, err := client.NewClient(context.TODO(), client.WithClientsetFn(cFn), client.WithRestClientConfig(config))
+	assert.EqualError(t, err, "K8SNewForConfig - bad clientset")
 }
 
 func TestNewClientRestConfigWarnings(t *testing.T) {
@@ -36,10 +48,9 @@ func TestNewClientRestConfigWarnings(t *testing.T) {
 		return nil
 	})))
 
-	c, err := client.NewClient(client.WithRestClientConfig(config), client.WithLogger(logger))
+	c, err := client.NewClient(context.TODO(), client.WithRestClientConfig(config), client.WithLogger(logger))
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		t.Fatal(err)
 	}
 	assert.NotNil(t, c)
 	assert.Equal(t, c.NamespaceMode, client.Auto)
@@ -50,10 +61,9 @@ func TestNewClientRestConfigWarnings(t *testing.T) {
 }
 func TestNewClient(t *testing.T) {
 	config := &rest.Config{QPS: 400, Burst: 800}
-	c, err := client.NewClient(client.WithRestClientConfig(config))
+	c, err := client.NewClient(context.TODO(), client.WithRestClientConfig(config))
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		t.Fatal(err)
 	}
 	assert.NotNil(t, c)
 	assert.Equal(t, c.NamespaceMode, client.Auto)
@@ -63,7 +73,7 @@ func TestNewClient(t *testing.T) {
 
 func TestNewClientOptions(t *testing.T) {
 	config := &rest.Config{QPS: 400, Burst: 800}
-	c, err := client.NewClient(
+	c, err := client.NewClient(context.TODO(),
 		client.WithNamespaceMode(client.Explicit),
 		client.WithResourceMode(client.Explicit),
 		client.WithSkipSubjectAccessChecks(true),
