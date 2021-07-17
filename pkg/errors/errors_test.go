@@ -26,3 +26,10 @@ func TestResourceNotSyncedError(t *testing.T) {
 	assert.NotNil(t, err)
 	assert.Equal(t, err.Error(), "ResourceNotSynced - reason:explicit mode set and resource is not listed")
 }
+
+func TestNilRESTConfigError(t *testing.T) {
+	err := &errors.NilRESTConfig{}
+
+	assert.NotNil(t, err)
+	assert.Equal(t, err.Error(), "NilRESTConfig - cannot create client")
+}

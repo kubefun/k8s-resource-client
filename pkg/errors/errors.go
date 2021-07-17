@@ -18,3 +18,10 @@ type ResourceNotSynced struct {
 func (e *ResourceNotSynced) Error() string {
 	return fmt.Sprintf("ResourceNotSynced - reason:%v", e.Reason)
 }
+
+type NilRESTConfig struct {
+}
+
+func (e *NilRESTConfig) Error() string {
+	return "NilRESTConfig - cannot create client"
+}

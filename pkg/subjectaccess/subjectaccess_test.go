@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
 	_errors "github.com/wwitzel3/k8s-resource-client/pkg/errors"
 	"github.com/wwitzel3/k8s-resource-client/pkg/subjectaccess"
 )
