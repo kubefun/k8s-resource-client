@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"go.uber.org/zap"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
@@ -28,7 +29,7 @@ func WithSkipSubjectAccessChecks(skip bool) ClientOption {
 	}
 }
 
-func WithRestClientConfig(config *rest.Config) ClientOption {
+func WithRESTConfig(config *rest.Config) ClientOption {
 	return func(c *Client) {
 		c.RESTConfig = config
 	}
@@ -37,6 +38,12 @@ func WithRestClientConfig(config *rest.Config) ClientOption {
 func WithClientsetFn(fn func(context.Context, *rest.Config) (*kubernetes.Clientset, error)) ClientOption {
 	return func(c *Client) {
 		c.ClientsetFn = fn
+	}
+}
+
+func WithDynamicClientFn(fn func(context.Context, *rest.Config) (dynamic.Interface, error)) ClientOption {
+	return func(c *Client) {
+		c.DynamicClientFn = fn
 	}
 }
 

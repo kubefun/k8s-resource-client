@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
@@ -25,12 +26,22 @@ func TestNewClientNoRestConfig(t *testing.T) {
 
 func TestNewClientClientsetFnErr(t *testing.T) {
 	cFn := func(ctx context.Context, _ *rest.Config) (*kubernetes.Clientset, error) {
-		return nil, errors.NewK8SNewForConfig(ctx, fmt.Errorf("bad clientset"))
+		return nil, &errors.K8SNewForConfig{Err: fmt.Errorf("bad clientset")}
 	}
 	config := &rest.Config{QPS: 400, Burst: 800}
 
-	_, err := client.NewClient(context.TODO(), client.WithClientsetFn(cFn), client.WithRestClientConfig(config))
+	_, err := client.NewClient(context.TODO(), client.WithClientsetFn(cFn), client.WithRESTConfig(config))
 	assert.EqualError(t, err, "K8SNewForConfig - bad clientset")
+}
+
+func TestNewClientDynamicClientFnErr(t *testing.T) {
+	cFn := func(ctx context.Context, _ *rest.Config) (dynamic.Interface, error) {
+		return nil, &errors.K8SNewForConfig{Err: fmt.Errorf("bad dynamic")}
+	}
+	config := &rest.Config{QPS: 400, Burst: 800}
+
+	_, err := client.NewClient(context.TODO(), client.WithDynamicClientFn(cFn), client.WithRESTConfig(config))
+	assert.EqualError(t, err, "K8SNewForConfig - bad dynamic")
 }
 
 func TestNewClientRestConfigWarnings(t *testing.T) {
@@ -48,7 +59,7 @@ func TestNewClientRestConfigWarnings(t *testing.T) {
 		return nil
 	})))
 
-	c, err := client.NewClient(context.TODO(), client.WithRestClientConfig(config), client.WithLogger(logger))
+	c, err := client.NewClient(context.TODO(), client.WithRESTConfig(config), client.WithLogger(logger))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +72,7 @@ func TestNewClientRestConfigWarnings(t *testing.T) {
 }
 func TestNewClient(t *testing.T) {
 	config := &rest.Config{QPS: 400, Burst: 800}
-	c, err := client.NewClient(context.TODO(), client.WithRestClientConfig(config))
+	c, err := client.NewClient(context.TODO(), client.WithRESTConfig(config))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +88,7 @@ func TestNewClientOptions(t *testing.T) {
 		client.WithNamespaceMode(client.Explicit),
 		client.WithResourceMode(client.Explicit),
 		client.WithSkipSubjectAccessChecks(true),
-		client.WithRestClientConfig(config),
+		client.WithRESTConfig(config),
 	)
 	if err != nil {
 		t.Error(err)

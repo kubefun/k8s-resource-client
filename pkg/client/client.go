@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"go.uber.org/zap"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
@@ -29,6 +30,9 @@ type Client struct {
 	ClientsetFn func(context.Context, *rest.Config) (*kubernetes.Clientset, error)
 	clientset   *kubernetes.Clientset
 
+	DynamicClientFn func(context.Context, *rest.Config) (dynamic.Interface, error)
+	dynamic         dynamic.Interface
+
 	mu sync.Mutex
 }
 
@@ -41,6 +45,7 @@ func NewClient(ctx context.Context, options ...ClientOption) (*Client, error) {
 		SkipSubjectAccessChecks: false,
 		Logger:                  logging.Logger,
 		ClientsetFn:             NewClientset,
+		DynamicClientFn:         NewDynamicClient,
 	}
 
 	for _, opt := range options {
@@ -68,6 +73,13 @@ func (c *Client) UpdateRESTConfig(ctx context.Context, config *rest.Config) erro
 		return err
 	}
 	c.clientset = clientset
+
+	dynclient, err := c.DynamicClientFn(ctx, c.RESTConfig)
+	if err != nil {
+		return err
+	}
+	c.dynamic = dynclient
+
 	return nil
 }
 
@@ -95,5 +107,16 @@ func CheckRestConfig(ctx context.Context, config *rest.Config, logger *zap.Logge
 
 func NewClientset(ctx context.Context, config *rest.Config) (*kubernetes.Clientset, error) {
 	clientset, err := kubernetes.NewForConfig(config)
-	return clientset, errors.NewK8SNewForConfig(ctx, err)
+	if err != nil {
+		return nil, &errors.K8SNewForConfig{Err: err}
+	}
+	return clientset, nil
+}
+
+func NewDynamicClient(ctx context.Context, config *rest.Config) (dynamic.Interface, error) {
+	dc, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return nil, &errors.K8SNewForConfig{Err: err}
+	}
+	return dc, nil
 }

@@ -1,4 +1,4 @@
-package subjectaccess_test
+package client_test
 
 import (
 	"errors"
@@ -6,12 +6,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/wwitzel3/k8s-resource-client/pkg/client"
 	_errors "github.com/wwitzel3/k8s-resource-client/pkg/errors"
-	"github.com/wwitzel3/k8s-resource-client/pkg/subjectaccess"
 )
 
 func TestCheckResourceAccess(t *testing.T) {
-	err := subjectaccess.CheckResourceAccess("pod", "list")
+	err := client.CheckResourceAccess("pod", "list")
 
 	var e *_errors.FailedSubjectAccessCheck
 	assert.True(t, errors.As(err, &e))
