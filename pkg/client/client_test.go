@@ -33,33 +33,6 @@ func TestNewClientClientsetFnErr(t *testing.T) {
 	assert.EqualError(t, err, "K8SNewForConfig - bad clientset")
 }
 
-func TestClientUpdateRESTConfig(t *testing.T) {
-	config := &rest.Config{QPS: 400, Burst: 800}
-	client, err := client.NewClient(context.TODO(), client.WithRestClientConfig(config))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	new_config := &rest.Config{QPS: 500, Burst: 1000}
-	err = client.UpdateRESTConfig(context.TODO(), new_config)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	assert.Equal(t, client.RESTConfig.QPS, float32(500))
-	assert.Equal(t, client.RESTConfig.Burst, 1000)
-
-	err = client.UpdateRESTConfig(context.TODO(), nil)
-	assert.EqualError(t, err, "NilRESTConfig - cannot create client")
-
-	cFn := func(ctx context.Context, _ *rest.Config) (*kubernetes.Clientset, error) {
-		return nil, errors.NewK8SNewForConfig(ctx, fmt.Errorf("bad clientset"))
-	}
-	client.ClientsetFn = cFn
-	err = client.UpdateRESTConfig(context.TODO(), new_config)
-	assert.EqualError(t, err, "K8SNewForConfig - bad clientset")
-}
-
 func TestNewClientRestConfigWarnings(t *testing.T) {
 	burstWarning := false
 	qpsWarning := false

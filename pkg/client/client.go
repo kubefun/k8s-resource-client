@@ -47,15 +47,9 @@ func NewClient(ctx context.Context, options ...ClientOption) (*Client, error) {
 		opt(c)
 	}
 
-	if err := CheckRestConfig(ctx, c.RESTConfig, c.Logger); err != nil {
+	if err := c.UpdateRESTConfig(ctx, c.RESTConfig); err != nil {
 		return nil, err
 	}
-
-	clientset, err := c.ClientsetFn(ctx, c.RESTConfig)
-	if err != nil {
-		return nil, err
-	}
-	c.clientset = clientset
 
 	return c, nil
 }
