@@ -9,7 +9,7 @@ import (
 )
 
 func AutoDiscoverAccess(ctx context.Context, client *Client, resources ...resource.Resource) error {
-	cache.Access = resource.NewResourceAccess(ctx, client.clientset.AuthorizationV1().SelfSubjectAccessReviews(), resources...)
+	cache.Access = resource.NewResourceAccess(ctx, client.clientset.AuthorizationV1().SelfSubjectAccessReviews(), resources)
 	return nil
 }
 

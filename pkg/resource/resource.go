@@ -4,10 +4,8 @@ package resource
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 
-	"github.com/wwitzel3/k8s-resource-client/pkg/logging"
 	"go.uber.org/zap"
 	authv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,13 +20,6 @@ const (
 	Allowed
 	Unused
 	Error
-)
-
-var (
-	APIVerbs = []string{
-		"list",
-		"watch",
-	}
 )
 
 type Resource struct {
@@ -51,9 +42,13 @@ func (r Resource) Key() string {
 }
 
 // ResourceList creates a list of Resource objects using the Discovery client.
-func ResourceList(_ context.Context, client discovery.ServerResourcesInterface, namespace string) ([]Resource, error) {
+func ResourceList(_ context.Context, logger *zap.Logger, client discovery.ServerResourcesInterface, namespace string) ([]Resource, error) {
 	if client == nil {
 		return nil, fmt.Errorf("discoveryClient is nil")
+	}
+
+	if logger == nil {
+		logger = zap.NewNop()
 	}
 
 	var resourceList func() ([]*metav1.APIResourceList, error)
@@ -68,7 +63,9 @@ func ResourceList(_ context.Context, client discovery.ServerResourcesInterface, 
 		if resources == nil {
 			return nil, fmt.Errorf("get preferred resources: %w", err)
 		}
-		log.Printf("Unable to get full resource list: %s", err)
+		logger.Warn("unable to get full resource list",
+			zap.Error(err),
+		)
 	}
 
 	var result []Resource
@@ -79,7 +76,7 @@ func ResourceList(_ context.Context, client discovery.ServerResourcesInterface, 
 
 		groupVersion, err := schema.ParseGroupVersion(resp.GroupVersion)
 		if err != nil {
-			log.Printf("Unable to parse groupVersion: %s", err)
+			logger.Warn("unable to parse groupVersion", zap.Error(err))
 			continue
 		}
 
@@ -121,9 +118,15 @@ var _ ResourceAccess = (*resourceAccess)(nil)
 
 // NewResourceAccess provides a ResourceAccess object with an access map popluated from issuing SelfSubjectAccessReview
 // requests for the list of resources and verbs provided.
-func NewResourceAccess(ctx context.Context, client authClient.SelfSubjectAccessReviewInterface, resources ...Resource) *resourceAccess {
+func NewResourceAccess(ctx context.Context, client authClient.SelfSubjectAccessReviewInterface, resources []Resource, options ...ResourceAccessOption) *resourceAccess {
 	ra := &resourceAccess{
-		access: sync.Map{},
+		access:       sync.Map{},
+		logger:       zap.NewNop(),
+		minimumVerbs: metav1.Verbs{"list", "watch"},
+	}
+
+	for _, o := range options {
+		o(ra)
 	}
 
 	group := sync.WaitGroup{}
@@ -134,7 +137,7 @@ func NewResourceAccess(ctx context.Context, client authClient.SelfSubjectAccessR
 		go func() {
 			defer group.Done()
 
-			for _, verb := range APIVerbs {
+			for _, verb := range ra.minimumVerbs {
 				select {
 				case <-ctx.Done():
 					return
@@ -151,7 +154,9 @@ func NewResourceAccess(ctx context.Context, client authClient.SelfSubjectAccessR
 }
 
 type resourceAccess struct {
-	access sync.Map
+	access       sync.Map
+	logger       *zap.Logger
+	minimumVerbs metav1.Verbs
 }
 
 // Allowed checks if the given verb is allowed for the GVK.
@@ -160,13 +165,17 @@ func (r *resourceAccess) Allowed(resource Resource, verb string) bool {
 
 	v, found := r.access.Load(key)
 	if !found {
-		log.Printf("not found: %s", key)
+		r.logger.Debug("not found",
+			zap.String("key", key),
+		)
 		return false
 	}
 
 	s, ok := v.(int)
 	if !ok {
-		logging.Logger.Warn("unable to type convert status to int, malformed access map")
+		r.logger.Warn("unable to type convert status to int, malformed access map",
+			zap.String("value", fmt.Sprintf("%v", v)),
+		)
 		return false
 	}
 
@@ -222,9 +231,9 @@ func (ra *resourceAccess) Update(ctx context.Context, client authClient.SelfSubj
 		if result.Status.Allowed {
 			ra.access.Store(key, Allowed)
 		} else {
-			logging.Logger.Warn("resource failed minimum RBAC requirement",
+			ra.logger.Warn("resource failed minimum RBAC requirement",
 				zap.String("resource", fmt.Sprintf("%v", resource.APIResource)),
-				zap.String("minimum_verbs", fmt.Sprintf("%v", APIVerbs)),
+				zap.String("minimum_verbs", fmt.Sprintf("%v", ra.minimumVerbs)),
 			)
 			ra.access.Store(key, Denied)
 		}

@@ -31,7 +31,7 @@ func AutoDiscoverResources(ctx context.Context, client *Client) error {
 // ResourceListForNamespace uses a Discovery Client and attempts to list all of the known resources for the given namespace.
 // This method can be used to populate initial resource lists as well as refresh existing caches.
 func ResourceListForNamespace(ctx context.Context, client *Client, namespace string) ([]resource.Resource, error) {
-	scopedResources, err := resource.ResourceList(ctx, client.clientset.DiscoveryClient, namespace)
+	scopedResources, err := resource.ResourceList(ctx, client.Logger, client.clientset.DiscoveryClient, namespace)
 	if err != nil {
 		// TODO: consider if we want a typed-error
 		return nil, err
