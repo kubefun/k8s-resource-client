@@ -27,6 +27,8 @@ type ResourceCache struct {
 }
 
 func (r *ResourceCache) AddResources(key string, resources ...resource.Resource) {
+	resources = unique(resources)
+
 	v, loaded := r._map.LoadOrStore(key, resources)
 	if loaded {
 		existingResources, _ := v.([]resource.Resource)

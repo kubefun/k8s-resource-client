@@ -232,6 +232,8 @@ func (ra *resourceAccess) Update(ctx context.Context, client authClient.SelfSubj
 			ra.access.Store(key, Allowed)
 		} else {
 			ra.logger.Warn("resource failed minimum RBAC requirement",
+				zap.String("reason", result.Status.Reason),
+				zap.String("evaluation_error", result.Status.EvaluationError),
 				zap.String("resource", fmt.Sprintf("%v", resource.APIResource)),
 				zap.String("minimum_verbs", fmt.Sprintf("%v", ra.minimumVerbs)),
 			)
