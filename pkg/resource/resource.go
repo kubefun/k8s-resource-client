@@ -51,7 +51,11 @@ func (r Resource) Key() string {
 }
 
 // ResourceList creates a list of Resource objects using the Discovery client.
-func ResourceList(_ context.Context, client discovery.DiscoveryInterface, namespace string) ([]Resource, error) {
+func ResourceList(_ context.Context, client discovery.ServerResourcesInterface, namespace string) ([]Resource, error) {
+	if client == nil {
+		return nil, fmt.Errorf("discoveryClient is nil")
+	}
+
 	var resourceList func() ([]*metav1.APIResourceList, error)
 	if namespace == "" {
 		resourceList = client.ServerPreferredResources
