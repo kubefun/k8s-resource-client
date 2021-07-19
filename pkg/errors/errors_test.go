@@ -1,7 +1,6 @@
 package errors_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -37,15 +36,26 @@ func TestNilRESTConfigError(t *testing.T) {
 }
 
 func TestK8SNewForConfig(t *testing.T) {
-	var err error
-	err = &errors.K8SNewForConfig{Err: fmt.Errorf("test")}
+	err := &errors.K8SNewForConfig{Err: fmt.Errorf("test")}
 
 	assert.NotNil(t, err)
 	assert.Equal(t, err.Error(), "K8SNewForConfig - test")
+}
 
-	err = errors.NewK8SNewForConfig(context.TODO(), nil)
-	assert.Nil(t, err)
+func TestNamespaceDiscoveryError(t *testing.T) {
+	err := &errors.NamespaceDiscoveryError{Err: fmt.Errorf("test")}
 
-	err = errors.NewK8SNewForConfig(context.TODO(), fmt.Errorf("test"))
-	assert.EqualError(t, err, "K8SNewForConfig - test")
+	assert.NotNil(t, err)
+	assert.Equal(t, err.Error(), "NamespaceDiscoveryError - test")
+}
+
+func TestResourceDiscoveryError(t *testing.T) {
+	err := &errors.ResourceDiscoveryError{Err: []error{fmt.Errorf("test"), fmt.Errorf("test2")}}
+
+	assert.NotNil(t, err)
+	assert.Equal(t, err.Error(), "ResourceDiscoveryError - [test test2]")
+
+	rdErr := &errors.ResourceDiscoveryError{Err: []error{fmt.Errorf("test"), fmt.Errorf("test2")}}
+	rdErr.Add(fmt.Errorf("test3"))
+	assert.Equal(t, rdErr.Error(), "ResourceDiscoveryError - [test test2 test3]")
 }

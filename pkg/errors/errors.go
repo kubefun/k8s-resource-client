@@ -1,8 +1,8 @@
 package errors
 
 import (
-	"context"
 	"fmt"
+	"sync"
 )
 
 type FailedSubjectAccessCheck struct {
@@ -37,9 +37,25 @@ func (e *K8SNewForConfig) Error() string {
 	return fmt.Sprintf("K8SNewForConfig - %s", e.Err)
 }
 
-func NewK8SNewForConfig(_ context.Context, err error) error {
-	if err != nil {
-		return &K8SNewForConfig{Err: err}
-	}
-	return nil
+type NamespaceDiscoveryError struct {
+	Err error
+}
+
+func (e *NamespaceDiscoveryError) Error() string {
+	return fmt.Sprintf("NamespaceDiscoveryError - %s", e.Err)
+}
+
+type ResourceDiscoveryError struct {
+	Err []error
+	mu  sync.Mutex
+}
+
+func (e *ResourceDiscoveryError) Error() string {
+	return fmt.Sprintf("ResourceDiscoveryError - %v", e.Err)
+}
+
+func (e *ResourceDiscoveryError) Add(err error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.Err = append(e.Err, err)
 }
