@@ -1,9 +1,16 @@
 package resource
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 func TestStatusIntAsBool(t *testing.T) {
@@ -23,4 +30,37 @@ func TestStatusIntAsBool(t *testing.T) {
 func TestResourceVerbKey(t *testing.T) {
 	verbKey := resourceVerbKey("pod", "watch")
 	assert.Equal(t, "pod.watch", verbKey)
+}
+
+func TestResourceAccessTypeCast(t *testing.T) {
+	failCast := false
+	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.Hooks(func(e zapcore.Entry) error {
+		fmt.Println(e.Message, e.Level)
+		if strings.Contains(e.Message, "unable to type convert status to int") && e.Level == zap.WarnLevel {
+			failCast = true
+		}
+		return nil
+	})))
+	ra := &resourceAccess{
+		logger: logger,
+	}
+
+	key := resourceVerbKey(deploymentResource.Key(), "list")
+	ra.access.Store(key, "test")
+	ra.Allowed(deploymentResource, "list")
+	assert.True(t, failCast)
+}
+
+var deploymentResource = Resource{
+	Namespace:        "default",
+	GroupVersionKind: schema.GroupVersionKind{Version: "v1", Group: "apps", Kind: "deployment"},
+	APIResource: metav1.APIResource{
+		Name:         "deployments",
+		SingularName: "deployment",
+		Namespaced:   true,
+		Group:        "apps",
+		Kind:         "deployment",
+		Version:      "v1",
+		Verbs:        metav1.Verbs{"get", "list", "watch", "delete", "create"},
+	},
 }

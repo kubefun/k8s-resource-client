@@ -50,6 +50,26 @@ func TestResourceAccessChecksFalse(t *testing.T) {
 	assert.Contains(t, ra.String(), "default.apps.v1.deployment.watch: 3")
 }
 
+func TestResourceAccessChecksNotFound(t *testing.T) {
+	authFake := rtesting.SubjectAccessFake{}
+
+	notFound := false
+	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.Hooks(func(e zapcore.Entry) error {
+		fmt.Println(e.Message, e.Level)
+		if strings.Contains(e.Message, "not found") && e.Level == zap.DebugLevel {
+			notFound = true
+		}
+		return nil
+	})))
+
+	ra := resource.NewResourceAccess(context.TODO(), authFake, []resource.Resource{},
+		resource.WithLogger(logger),
+		resource.WithMinimumRBAC([]string{"list", "watch"}),
+	)
+	ra.Allowed(deploymentResource, "list")
+	assert.True(t, notFound)
+}
+
 func TestResourceAccessChecksTrue(t *testing.T) {
 	authFake := rtesting.SubjectAccessFake{}
 	authFake.CreateFn = func(fake *rtesting.SubjectAccessFake) (*v1.SelfSubjectAccessReview, error) {
@@ -107,6 +127,10 @@ func TestResourceAccessChecksDenied(t *testing.T) {
 
 	assert.Contains(t, ra.String(), "default.apps.v1.deployment.list: 0")
 	assert.Contains(t, ra.String(), "default.apps.v1.deployment.watch: 0")
+
+	deploymentResource.APIResource.Namespaced = false
+	ra.Update(context.TODO(), authFake, deploymentResource, "patch")
+	assert.Contains(t, ra.String(), "apps.v1.deployment.patch: 2")
 }
 
 var deploymentResource = resource.Resource{
