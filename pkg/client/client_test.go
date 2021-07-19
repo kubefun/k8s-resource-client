@@ -46,6 +46,26 @@ func TestNewClientDynamicClientFnErr(t *testing.T) {
 	assert.EqualError(t, err, "K8SNewForConfig - bad dynamic")
 }
 
+func TestNewClientServerResourcesFnErr(t *testing.T) {
+	srFn := func(_ context.Context, clientset kubernetes.Interface) (discovery.ServerResourcesInterface, error) {
+		return nil, fmt.Errorf("server resources err")
+	}
+	config := &rest.Config{QPS: 400, Burst: 800}
+
+	_, err := client.NewClient(context.TODO(), client.WithServerResourcesFn(srFn), client.WithRESTConfig(config))
+	assert.EqualError(t, err, "server resources err")
+}
+
+func TestNewClientSubjectAccessFnErr(t *testing.T) {
+	saFn := func(_ context.Context, clientset kubernetes.Interface) (typedAuthv1.SelfSubjectAccessReviewInterface, error) {
+		return nil, fmt.Errorf("subject access error")
+	}
+	config := &rest.Config{QPS: 400, Burst: 800}
+
+	_, err := client.NewClient(context.TODO(), client.WithSubjectAccessFn(saFn), client.WithRESTConfig(config))
+	assert.EqualError(t, err, "subject access error")
+}
+
 func TestNewClientRestConfigWarnings(t *testing.T) {
 	burstWarning := false
 	qpsWarning := false
@@ -119,4 +139,31 @@ func TestNewClientOptions(t *testing.T) {
 	assert.Equal(t, c.NamespaceMode, client.Explicit)
 	assert.Equal(t, c.ResourceMode, client.Explicit)
 	assert.Equal(t, c.SkipSubjectAccessChecks, true)
+}
+
+func TestNewClientset(t *testing.T) {
+	config := &rest.Config{
+		RateLimiter: nil,
+		QPS:         100,
+		Burst:       -10,
+	}
+	_, err := client.NewClientset(context.TODO(), config)
+	assert.EqualError(t, err, "K8SNewForConfig - burst is required to be greater than 0 when RateLimiter is not set and QPS is set to greater than 0")
+}
+
+func TestNewDynamic(t *testing.T) {
+	config := &rest.Config{
+		WarningHandler: rest.NewWarningWriter(nil, rest.WarningWriterOptions{}),
+		Host:           "ftp:///bad.host.org",
+	}
+	_, err := client.NewDynamicClient(context.TODO(), config)
+	assert.EqualError(t, err, "K8SNewForConfig - host must be a URL or a host:port pair: \"ftp:///bad.host.org\"")
+}
+
+func TestNewClientFuncs(t *testing.T) {
+	_, err := client.NewServerResources(context.TODO(), nil)
+	assert.EqualError(t, err, "nil client.clientset")
+
+	_, err = client.NewSubjectAccess(context.TODO(), nil)
+	assert.EqualError(t, err, "nil client.clientset")
 }

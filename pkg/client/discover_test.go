@@ -109,7 +109,7 @@ func TestAutoDiscoverResources(t *testing.T) {
 	}
 
 	serverResourcesFn := func(context.Context, kubernetes.Interface) (discovery.ServerResourcesInterface, error) {
-		return &rtesting.ServerResourcesFake{}, nil
+		return &rtesting.ServerResourcesFake{Namespaced: true}, nil
 	}
 
 	c, err := client.NewClient(context.TODO(), client.WithRESTConfig(config), client.WithClientsetFn(clientsetFn), client.WithServerResourcesFn(serverResourcesFn))
@@ -120,4 +120,54 @@ func TestAutoDiscoverResources(t *testing.T) {
 
 	err = client.AutoDiscoverResources(context.TODO(), c)
 	assert.Nil(t, err)
+}
+
+func TestAutoDiscoverResourcesCluster(t *testing.T) {
+	assert.Len(t, cache.Resources.GetResources("default"), 0)
+	ctx := context.TODO()
+
+	config := &rest.Config{QPS: 400, Burst: 800}
+	clientset, err := client.NewClientset(ctx, config)
+
+	clientsetFn := func(context.Context, *rest.Config) (kubernetes.Interface, error) {
+		return clientset, err
+	}
+
+	serverResourcesFn := func(context.Context, kubernetes.Interface) (discovery.ServerResourcesInterface, error) {
+		return &rtesting.ServerResourcesFake{Namespaced: false}, nil
+	}
+
+	c, err := client.NewClient(context.TODO(), client.WithRESTConfig(config), client.WithClientsetFn(clientsetFn), client.WithServerResourcesFn(serverResourcesFn))
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	err = client.AutoDiscoverResources(context.TODO(), c)
+	assert.Nil(t, err)
+}
+
+func TestAutoDiscoverResourcesErr(t *testing.T) {
+	assert.Len(t, cache.Resources.GetResources("default"), 0)
+	ctx := context.TODO()
+
+	config := &rest.Config{QPS: 400, Burst: 800}
+	clientset, err := client.NewClientset(ctx, config)
+
+	clientsetFn := func(context.Context, *rest.Config) (kubernetes.Interface, error) {
+		return clientset, err
+	}
+
+	serverResourcesFn := func(context.Context, kubernetes.Interface) (discovery.ServerResourcesInterface, error) {
+		return &rtesting.ServerResourcesFake{Err: true}, nil
+	}
+
+	c, err := client.NewClient(context.TODO(), client.WithRESTConfig(config), client.WithClientsetFn(clientsetFn), client.WithServerResourcesFn(serverResourcesFn))
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	err = client.AutoDiscoverResources(context.TODO(), c)
+	assert.EqualError(t, err, "ResourceDiscoveryError - [get preferred resources: fake server resources error]")
 }

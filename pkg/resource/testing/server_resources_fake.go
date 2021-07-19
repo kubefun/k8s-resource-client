@@ -1,6 +1,8 @@
 package testing
 
 import (
+	"fmt"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 )
@@ -10,6 +12,7 @@ var _ discovery.ServerResourcesInterface = (*ServerResourcesFake)(nil)
 type ServerResourcesFake struct {
 	Empty           bool
 	NoVerbs         bool
+	Err             bool
 	Namespaced      bool
 	APIResourceList []*metav1.APIResourceList
 
@@ -59,6 +62,10 @@ func ServerPreferredResources(fake *ServerResourcesFake) ([]*metav1.APIResourceL
 		},
 		GroupVersion: "apps/v1",
 		APIResources: resources,
+	}
+
+	if fake.Err {
+		return nil, fmt.Errorf("fake server resources error")
 	}
 
 	if fake.NoVerbs {
