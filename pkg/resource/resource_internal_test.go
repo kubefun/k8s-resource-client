@@ -45,10 +45,25 @@ func TestResourceAccessTypeCast(t *testing.T) {
 		logger: logger,
 	}
 
+	ra.access.Store("key", 1)
+
 	key := resourceVerbKey(deploymentResource.Key(), "list")
 	ra.access.Store(key, "test")
 	ra.Allowed(deploymentResource, "list")
 	assert.True(t, failCast)
+
+	r := ra.String()
+	assert.Equal(t, "key: 1\n", r)
+}
+
+func TestResourceAccessStringBadKey(t *testing.T) {
+	ra := &resourceAccess{
+		logger: zap.NewNop(),
+	}
+
+	ra.access.Store(1, 1)
+	r := ra.String()
+	assert.Equal(t, "", r)
 }
 
 var deploymentResource = Resource{

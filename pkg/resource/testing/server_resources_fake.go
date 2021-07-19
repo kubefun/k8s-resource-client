@@ -8,6 +8,8 @@ import (
 var _ discovery.ServerResourcesInterface = (*ServerResourcesFake)(nil)
 
 type ServerResourcesFake struct {
+	Empty           bool
+	NoVerbs         bool
 	Namespaced      bool
 	APIResourceList []*metav1.APIResourceList
 
@@ -57,6 +59,14 @@ func ServerPreferredResources(fake *ServerResourcesFake) ([]*metav1.APIResourceL
 		},
 		GroupVersion: "apps/v1",
 		APIResources: resources,
+	}
+
+	if fake.NoVerbs {
+		resources[0].Verbs = metav1.Verbs{}
+	}
+
+	if fake.Empty {
+		return []*metav1.APIResourceList{{APIResources: []metav1.APIResource{}}}, nil
 	}
 	return []*metav1.APIResourceList{resource_list}, nil
 }

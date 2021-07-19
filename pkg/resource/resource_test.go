@@ -52,6 +52,25 @@ func TestResourceListNamespaceScoped(t *testing.T) {
 	assert.Equal(t, resource.Key(), "default.v1.deployment")
 }
 
+func TestResourceListEmpty(t *testing.T) {
+
+	client := rtesting.ServerResourcesFake{Namespaced: true, Empty: true}
+
+	r, err := resource.ResourceList(context.TODO(), nil, client, "default")
+	assert.Nil(t, err)
+
+	assert.Len(t, r, 0)
+}
+
+func TestResourceListNoVerbs(t *testing.T) {
+
+	client := rtesting.ServerResourcesFake{Namespaced: true, NoVerbs: true}
+
+	r, err := resource.ResourceList(context.TODO(), nil, client, "default")
+	assert.Nil(t, err)
+
+	assert.Len(t, r, 0)
+}
 func TestResourceListBadGroupVersion(t *testing.T) {
 	client := rtesting.ServerResourcesFake{Namespaced: true}
 	client.ServerPreferredResourcesFn = func(fake *rtesting.ServerResourcesFake) ([]*v1.APIResourceList, error) {
