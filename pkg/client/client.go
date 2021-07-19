@@ -2,11 +2,14 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"go.uber.org/zap"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	typedAuthv1 "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/rest"
 
 	"github.com/wwitzel3/k8s-resource-client/pkg/errors"
@@ -33,6 +36,12 @@ type Client struct {
 	DynamicClientFn func(context.Context, *rest.Config) (dynamic.Interface, error)
 	dynamic         dynamic.Interface
 
+	ServerResourcesFn func(context.Context, kubernetes.Interface) (discovery.ServerResourcesInterface, error)
+	serverResources   discovery.ServerResourcesInterface
+
+	SubjectAccessFn func(context.Context, kubernetes.Interface) (typedAuthv1.SelfSubjectAccessReviewInterface, error)
+	subjectAccess   typedAuthv1.SelfSubjectAccessReviewInterface
+
 	mu sync.Mutex
 }
 
@@ -46,6 +55,8 @@ func NewClient(ctx context.Context, options ...ClientOption) (*Client, error) {
 		Logger:                  logging.Logger,
 		ClientsetFn:             NewClientset,
 		DynamicClientFn:         NewDynamicClient,
+		ServerResourcesFn:       NewServerResources,
+		SubjectAccessFn:         NewSubjectAccess,
 	}
 
 	for _, opt := range options {
@@ -80,6 +91,17 @@ func (c *Client) UpdateRESTConfig(ctx context.Context, config *rest.Config) erro
 	}
 	c.dynamic = dynclient
 
+	serverResources, err := c.ServerResourcesFn(ctx, c.clientset)
+	if err != nil {
+		return err
+	}
+	c.serverResources = serverResources
+
+	subjectAccess, err := c.SubjectAccessFn(ctx, c.clientset)
+	if err != nil {
+		return err
+	}
+	c.subjectAccess = subjectAccess
 	return nil
 }
 
@@ -119,4 +141,18 @@ func NewDynamicClient(ctx context.Context, config *rest.Config) (dynamic.Interfa
 		return nil, &errors.K8SNewForConfig{Err: err}
 	}
 	return dc, nil
+}
+
+func NewServerResources(ctx context.Context, clientset kubernetes.Interface) (discovery.ServerResourcesInterface, error) {
+	if clientset == nil {
+		return nil, fmt.Errorf("nil client.clientset")
+	}
+	return clientset.Discovery(), nil
+}
+
+func NewSubjectAccess(ctx context.Context, clientset kubernetes.Interface) (typedAuthv1.SelfSubjectAccessReviewInterface, error) {
+	if clientset == nil {
+		return nil, fmt.Errorf("nil client.clientset")
+	}
+	return clientset.AuthorizationV1().SelfSubjectAccessReviews(), nil
 }

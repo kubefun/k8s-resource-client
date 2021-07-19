@@ -10,7 +10,11 @@ import (
 	"github.com/wwitzel3/k8s-resource-client/pkg/client"
 	ctesting "github.com/wwitzel3/k8s-resource-client/pkg/client/testing"
 	"github.com/wwitzel3/k8s-resource-client/pkg/resource"
+	rtesting "github.com/wwitzel3/k8s-resource-client/pkg/resource/testing"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 func TestAutoDiscoverAccess(t *testing.T) {
@@ -67,11 +71,53 @@ func TestAutoDiscoverNamespaces(t *testing.T) {
 	assert.Len(t, cache.Namespaces, 1)
 }
 
-// func TestResourceListForNamespace(t *testing.T) {
-// 	assert.Len(t, cache.Resources.GetResources("default"), 0)
+func TestResourceListForNamespace(t *testing.T) {
+	assert.Len(t, cache.Resources.GetResources("default"), 0)
+	ctx := context.TODO()
 
-// 	fakeClient := ctesting.NewFakeClient(nil, false)
-// 	resources, err := client.ResourceListForNamespace(context.TODO(), fakeClient, "default")
-// 	assert.Nil(t, err)
-// 	assert.Len(t, resources, 1)
-// }
+	config := &rest.Config{QPS: 400, Burst: 800}
+	clientset, err := client.NewClientset(ctx, config)
+
+	clientsetFn := func(context.Context, *rest.Config) (kubernetes.Interface, error) {
+		return clientset, err
+	}
+
+	serverResourcesFn := func(context.Context, kubernetes.Interface) (discovery.ServerResourcesInterface, error) {
+		return &rtesting.ServerResourcesFake{}, nil
+	}
+
+	c, err := client.NewClient(context.TODO(), client.WithRESTConfig(config), client.WithClientsetFn(clientsetFn), client.WithServerResourcesFn(serverResourcesFn))
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	resources, err := client.ResourceListForNamespace(context.TODO(), c, "default")
+	assert.Nil(t, err)
+	assert.Len(t, resources, 1)
+}
+
+func TestAutoDiscoverResources(t *testing.T) {
+	assert.Len(t, cache.Resources.GetResources("default"), 0)
+	ctx := context.TODO()
+
+	config := &rest.Config{QPS: 400, Burst: 800}
+	clientset, err := client.NewClientset(ctx, config)
+
+	clientsetFn := func(context.Context, *rest.Config) (kubernetes.Interface, error) {
+		return clientset, err
+	}
+
+	serverResourcesFn := func(context.Context, kubernetes.Interface) (discovery.ServerResourcesInterface, error) {
+		return &rtesting.ServerResourcesFake{}, nil
+	}
+
+	c, err := client.NewClient(context.TODO(), client.WithRESTConfig(config), client.WithClientsetFn(clientsetFn), client.WithServerResourcesFn(serverResourcesFn))
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	err = client.AutoDiscoverResources(context.TODO(), c)
+	assert.Nil(t, err)
+}

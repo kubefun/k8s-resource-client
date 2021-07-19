@@ -9,8 +9,10 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	typedAuthv1 "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/rest"
 
 	"github.com/stretchr/testify/assert"
@@ -83,12 +85,31 @@ func TestNewClient(t *testing.T) {
 }
 
 func TestNewClientOptions(t *testing.T) {
+	ctx := context.TODO()
+
 	config := &rest.Config{QPS: 400, Burst: 800}
+	clientset, err := client.NewClientset(ctx, config)
+
+	clientsetFn := func(context.Context, *rest.Config) (kubernetes.Interface, error) {
+		return clientset, err
+	}
+
+	srFn := func(_ context.Context, clientset kubernetes.Interface) (discovery.ServerResourcesInterface, error) {
+		return clientset.Discovery(), nil
+	}
+
+	saFn := func(_ context.Context, clientset kubernetes.Interface) (typedAuthv1.SelfSubjectAccessReviewInterface, error) {
+		return clientset.AuthorizationV1().SelfSubjectAccessReviews(), nil
+	}
+
 	c, err := client.NewClient(context.TODO(),
 		client.WithNamespaceMode(client.Explicit),
 		client.WithResourceMode(client.Explicit),
 		client.WithSkipSubjectAccessChecks(true),
 		client.WithRESTConfig(config),
+		client.WithClientsetFn(clientsetFn),
+		client.WithServerResourcesFn(srFn),
+		client.WithSubjectAccessFn(saFn),
 	)
 	if err != nil {
 		t.Error(err)

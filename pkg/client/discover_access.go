@@ -15,7 +15,7 @@ var AutoAccessVerbs = metav1.Verbs{"list", "watch"}
 func AutoDiscoverAccess(ctx context.Context, client *Client, resources ...resource.Resource) error {
 	cache.Access = resource.NewResourceAccess(
 		ctx,
-		client.clientset.AuthorizationV1().SelfSubjectAccessReviews(),
+		client.subjectAccess,
 		resources,
 		resource.WithMinimumRBAC(AutoAccessVerbs),
 	)
@@ -26,7 +26,7 @@ func UpdateResourceAccess(ctx context.Context, client *Client, resource resource
 	if cache.Access == nil {
 		return fmt.Errorf("nil cache.Access")
 	}
-	cache.Access.Update(ctx, client.clientset.AuthorizationV1().SelfSubjectAccessReviews(), resource, "list")
-	cache.Access.Update(ctx, client.clientset.AuthorizationV1().SelfSubjectAccessReviews(), resource, "watch")
+	cache.Access.Update(ctx, client.subjectAccess, resource, "list")
+	cache.Access.Update(ctx, client.subjectAccess, resource, "watch")
 	return nil
 }
