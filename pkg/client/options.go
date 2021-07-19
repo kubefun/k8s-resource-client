@@ -35,7 +35,7 @@ func WithRESTConfig(config *rest.Config) ClientOption {
 	}
 }
 
-func WithClientsetFn(fn func(context.Context, *rest.Config) (*kubernetes.Clientset, error)) ClientOption {
+func WithClientsetFn(fn func(context.Context, *rest.Config) (kubernetes.Interface, error)) ClientOption {
 	return func(c *Client) {
 		c.ClientsetFn = fn
 	}

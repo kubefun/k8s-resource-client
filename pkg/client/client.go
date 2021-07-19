@@ -27,8 +27,8 @@ type Client struct {
 	RESTConfig              *rest.Config
 	Logger                  *zap.Logger
 
-	ClientsetFn func(context.Context, *rest.Config) (*kubernetes.Clientset, error)
-	clientset   *kubernetes.Clientset
+	ClientsetFn func(context.Context, *rest.Config) (kubernetes.Interface, error)
+	clientset   kubernetes.Interface
 
 	DynamicClientFn func(context.Context, *rest.Config) (dynamic.Interface, error)
 	dynamic         dynamic.Interface
@@ -105,7 +105,7 @@ func CheckRestConfig(ctx context.Context, config *rest.Config, logger *zap.Logge
 	}
 }
 
-func NewClientset(ctx context.Context, config *rest.Config) (*kubernetes.Clientset, error) {
+func NewClientset(ctx context.Context, config *rest.Config) (kubernetes.Interface, error) {
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return nil, &errors.K8SNewForConfig{Err: err}

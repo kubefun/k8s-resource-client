@@ -25,7 +25,7 @@ func TestNewClientNoRestConfig(t *testing.T) {
 }
 
 func TestNewClientClientsetFnErr(t *testing.T) {
-	cFn := func(ctx context.Context, _ *rest.Config) (*kubernetes.Clientset, error) {
+	cFn := func(ctx context.Context, _ *rest.Config) (kubernetes.Interface, error) {
 		return nil, &errors.K8SNewForConfig{Err: fmt.Errorf("bad clientset")}
 	}
 	config := &rest.Config{QPS: 400, Burst: 800}
