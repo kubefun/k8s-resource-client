@@ -11,15 +11,15 @@ import (
 
 func TestNewResourceCache(t *testing.T) {
 	c := cache.NewResourceCache()
-	c.AddResources("default", testResource, testResource)
+	c.Add("default", testResource, testResource)
 
-	resources := c.GetResources("default")
+	resources := c.Get("default")
 	assert.Len(t, resources, 1)
 
-	c.AddResources("default", testResource)
+	c.Add("default", testResource)
 	assert.Len(t, resources, 1)
 
-	empty := c.GetResources("not-found")
+	empty := c.Get("not-found")
 	assert.Len(t, empty, 0)
 }
 

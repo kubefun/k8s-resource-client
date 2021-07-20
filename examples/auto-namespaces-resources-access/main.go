@@ -5,11 +5,16 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
+	"time"
 
+	"k8s.io/apimachinery/pkg/labels"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/wwitzel3/k8s-resource-client/pkg/cache"
 	r6eCache "github.com/wwitzel3/k8s-resource-client/pkg/cache"
 	r6eClient "github.com/wwitzel3/k8s-resource-client/pkg/client"
 )
@@ -48,10 +53,10 @@ func main() {
 		panic(err)
 	}
 
-	nsResources := r6eCache.Resources.GetResources("namespace")
+	nsResources := r6eCache.Resources.Get("namespace")
 	fmt.Printf("namespace resource count: %d\n", len(nsResources))
 
-	cResources := r6eCache.Resources.GetResources("cluster")
+	cResources := r6eCache.Resources.Get("cluster")
 	fmt.Printf("cluster resource count: %d\n", len(cResources))
 
 	// No resources provided this will init an empty access cache, all checks will be false
@@ -63,6 +68,42 @@ func main() {
 	r6eClient.UpdateResourceAccess(ctx, client, nsResources[0])
 	fmt.Println(fmt.Sprintf("check list,watch access for %v: ", nsResources[0]), r6eCache.Access.AllowedAll(nsResources[0], []string{"list", "watch"}))
 
+	r6eClient.WatchAllResources(ctx, client, false)
+
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		os.Exit(1)
+	}()
+
+	for {
+		fmt.Println("active watcher count:", cache.WatchCount(true))
+		v, ok := cache.Watches.Load("v1.Pod")
+		if !ok {
+			fmt.Println("not found")
+		}
+		watcher, ok := v.(*cache.WatchDetails)
+		if !ok {
+			fmt.Println("bad conversion")
+		}
+
+		fmt.Println("pod counts by namespaces")
+		for _, ns := range cache.Namespaces {
+			objs, err := watcher.Lister.ByNamespace(ns).List(labels.Everything())
+			if err != nil {
+				panic(err)
+			}
+			fmt.Printf("total pods in namespace %s: %d\n", ns, len(objs))
+		}
+
+		objs, err := watcher.Lister.List(labels.Everything())
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("total pods in cluster: %d\n", len(objs))
+		time.Sleep(5 * time.Second)
+	}
 }
 
 func homeDir() string {

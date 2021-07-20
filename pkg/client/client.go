@@ -12,6 +12,7 @@ import (
 	typedAuthv1 "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/rest"
 
+	"github.com/wwitzel3/k8s-resource-client/pkg/cache"
 	"github.com/wwitzel3/k8s-resource-client/pkg/errors"
 	"github.com/wwitzel3/k8s-resource-client/pkg/logging"
 )
@@ -29,6 +30,9 @@ type Client struct {
 	SkipSubjectAccessChecks bool
 	RESTConfig              *rest.Config
 	Logger                  *zap.Logger
+
+	watcher   *cache.Watcher
+	WatcherFn func(context.Context, *zap.Logger, dynamic.Interface) (*cache.Watcher, error)
 
 	ClientsetFn func(context.Context, *rest.Config) (kubernetes.Interface, error)
 	clientset   kubernetes.Interface
@@ -53,6 +57,7 @@ func NewClient(ctx context.Context, options ...ClientOption) (*Client, error) {
 		NamespaceMode:           Auto,
 		SkipSubjectAccessChecks: false,
 		Logger:                  logging.Logger,
+		WatcherFn:               NewWatcher,
 		ClientsetFn:             NewClientset,
 		DynamicClientFn:         NewDynamicClient,
 		ServerResourcesFn:       NewServerResources,
@@ -102,6 +107,12 @@ func (c *Client) UpdateRESTConfig(ctx context.Context, config *rest.Config) erro
 		return err
 	}
 	c.subjectAccess = subjectAccess
+
+	watcher, err := c.WatcherFn(ctx, c.Logger, c.dynamic)
+	if err != nil {
+		return nil
+	}
+	c.watcher = watcher
 	return nil
 }
 
@@ -155,4 +166,8 @@ func NewSubjectAccess(ctx context.Context, clientset kubernetes.Interface) (type
 		return nil, fmt.Errorf("nil client.clientset")
 	}
 	return clientset.AuthorizationV1().SelfSubjectAccessReviews(), nil
+}
+
+func NewWatcher(ctx context.Context, logger *zap.Logger, d dynamic.Interface) (*cache.Watcher, error) {
+	return cache.NewWatcher(ctx, logger, d), nil
 }

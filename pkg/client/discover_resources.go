@@ -3,6 +3,8 @@ package client
 import (
 	"context"
 
+	"go.uber.org/zap"
+
 	"github.com/wwitzel3/k8s-resource-client/pkg/cache"
 	"github.com/wwitzel3/k8s-resource-client/pkg/errors"
 	"github.com/wwitzel3/k8s-resource-client/pkg/resource"
@@ -19,9 +21,9 @@ func AutoDiscoverResources(ctx context.Context, client *Client) error {
 	}
 	for _, resource := range resources {
 		if resource.APIResource.Namespaced {
-			cache.Resources.AddResources("namespace", resource)
+			cache.Resources.Add("namespace", resource)
 		} else {
-			cache.Resources.AddResources("cluster", resource)
+			cache.Resources.Add("cluster", resource)
 		}
 	}
 
@@ -37,4 +39,17 @@ func ResourceListForNamespace(ctx context.Context, client *Client, namespace str
 		return nil, err
 	}
 	return scopedResources, nil
+}
+
+func WatchResource(ctx context.Context, client *Client, res resource.Resource, queueEvents bool) *cache.WatchDetails {
+	client.Logger.Info("creating ListWatch",
+		zap.String("resource", res.APIResource.Name),
+	)
+	return client.watcher.Watch(ctx, res, queueEvents)
+}
+
+func WatchAllResources(ctx context.Context, client *Client, queueEvents bool) {
+	for _, res := range cache.Resources.Get("namespace") {
+		WatchResource(ctx, client, res, queueEvents)
+	}
 }
