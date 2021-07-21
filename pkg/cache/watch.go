@@ -45,40 +45,26 @@ func (w *WatchDetails) Stop() {
 	close(w.StopCh)
 }
 
-func (w *WatchDetails) NopDrain() {
-	for {
-		select {
-		case <-w.StopCh:
-			return
-		default:
-			_, shutdown := w.Queue.Get()
-			w.Logger.Info("processing queue")
-			if shutdown {
-				return
-			}
-		}
-	}
-}
-
 func (w *WatchDetails) Drain(ch chan<- interface{}, stopCh chan struct{}) {
 	go func() {
 		for {
 			select {
-			// Local stopCh for callers
-			case <-stopCh:
-				return
 			// Main stopCh for errors/controllers
 			case <-w.StopCh:
+				w.Logger.Debug("main stopCh closed")
+				return
+			// Local stopCh for callers
+			case <-stopCh:
+				w.Logger.Debug("local stopCh closed")
 				return
 			default:
 				i, shutdown := w.Queue.Get()
-				w.Logger.Info("processing queue",
-					zap.String("watcher", w.Key),
-				)
 				if shutdown {
+					w.Logger.Debug("processing queue and shutting down")
 					ch <- i
 					return
 				}
+				w.Logger.Debug("processing queue")
 				ch <- i
 			}
 		}
@@ -86,15 +72,30 @@ func (w *WatchDetails) Drain(ch chan<- interface{}, stopCh chan struct{}) {
 }
 
 type Watcher struct {
+	dclient         dynamic.Interface
 	informerFactory dynamicinformer.DynamicSharedInformerFactory
 	logger          *zap.Logger
 }
 
-func NewWatcher(ctx context.Context, logger *zap.Logger, client dynamic.Interface) *Watcher {
-	return &Watcher{
-		informerFactory: dynamicinformer.NewDynamicSharedInformerFactory(client, DefaultResyncDuration),
-		logger:          logger,
+func NewWatcher(ctx context.Context, options ...WatcherOption) (*Watcher, error) {
+	w := &Watcher{}
+	for _, opt := range options {
+		opt(w)
 	}
+
+	if w.logger == nil {
+		w.logger = zap.NewNop()
+	}
+
+	if w.dclient == nil {
+		return nil, fmt.Errorf("dynamic client nil, use WithDynamicClient option")
+	}
+
+	if w.informerFactory == nil {
+		w.informerFactory = dynamicinformer.NewDynamicSharedInformerFactory(w.dclient, DefaultResyncDuration)
+	}
+
+	return w, nil
 }
 
 func (w *Watcher) Watch(ctx context.Context, res resource.Resource, queueEvents bool) *WatchDetails {

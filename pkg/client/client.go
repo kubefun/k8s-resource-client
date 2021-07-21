@@ -169,5 +169,8 @@ func NewSubjectAccess(ctx context.Context, clientset kubernetes.Interface) (type
 }
 
 func NewWatcher(ctx context.Context, logger *zap.Logger, d dynamic.Interface) (*cache.Watcher, error) {
-	return cache.NewWatcher(ctx, logger, d), nil
+	return cache.NewWatcher(ctx,
+		cache.WithLogger(logger),
+		cache.WithDynamicClient(d),
+	)
 }
