@@ -122,10 +122,6 @@ func main() {
 		panic(err)
 	}
 
-	// Update the access cache for the first namespaced resource and check if we can list/watch it.
-	r6eClient.UpdateResourceAccess(ctx, client, nsResources[0])
-	fmt.Println(fmt.Sprintf("check list,watch access for %v: ", nsResources[0]), r6eCache.Access.AllowedAll(nsResources[0], []string{"list", "watch"}))
-
 	r6eClient.WatchAllResources(ctx, client, true)
 
 	http.Handle("/", websocket.Handler(Echo))
