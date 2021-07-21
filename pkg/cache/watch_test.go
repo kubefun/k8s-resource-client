@@ -16,6 +16,17 @@ import (
 	"github.com/wwitzel3/k8s-resource-client/pkg/resource"
 )
 
+func TestNewWatcherErr(t *testing.T) {
+	_, err := cache.NewWatcher(context.TODO())
+	assert.EqualError(t, err, "dynamic client nil, use WithDynamicClient option")
+}
+
+func TestNewWatcherDefaultInformerFactory(t *testing.T) {
+	dynFake := ctesting.FakeDynamicClient{}
+	_, err := cache.NewWatcher(context.TODO(), cache.WithDynamicClient(dynFake))
+	assert.Nil(t, err)
+}
+
 func TestWatcherHelpers(t *testing.T) {
 	dsifFake := wtesting.FakeDynamicSharedInformerFactory{}
 	dynFake := ctesting.FakeDynamicClient{}
@@ -23,6 +34,7 @@ func TestWatcherHelpers(t *testing.T) {
 	w, err := cache.NewWatcher(context.TODO(),
 		cache.WithDynamicClient(dynFake),
 		cache.WithDynamicSharedInformerFactory(dsifFake),
+		cache.WithLogger(zap.NewNop()),
 	)
 	assert.Nil(t, err)
 	assert.NotNil(t, w)
