@@ -1,0 +1,83 @@
+<html>
+  <head>
+    <!-- Load the latest version -->
+    <link rel="stylesheet" href="https://unpkg.com/@clr/ui/clr-ui.min.css" />
+    <!-- Or load a specific version -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/@clr/ui@2.0.0/clr-ui.min.css"
+    />
+  </head>
+  <body>
+    <script type="text/javascript">
+      var sock = null;
+      var wsuri = "ws://127.0.0.1:1234";
+
+      //Data Conversion
+      function createTable(response) {
+        var tbl = document.getElementById("tableDiv");
+        var tblBody = document.createElement("tbody");
+
+        var header = tbl.createTHead();
+        var headerRow = header.insertRow(0);
+        var headerCell = document.createElement("th");
+        headerCell.innerHTML = "key";
+        headerRow.appendChild(headerCell);
+        var headerCell2 = document.createElement("th");
+        headerCell2.innerHTML = "value";
+        headerRow.appendChild(headerCell2);
+        var headerCell3 = document.createElement("th");
+        headerCell3.innerHTML = "action";
+        headerRow.appendChild(headerCell3);
+
+        JSON.parse(response).fields.forEach(function (field) {
+          var row = document.createElement("tr");
+          var cell = document.createElement("td");
+          var cell2 = document.createElement("td");
+          var cell3 = document.createElement("td");
+          cell.innerHTML = field.key;
+          cell2.innerHTML = field.value;
+          cell3.innerHTML = field.action;
+          row.appendChild(cell);
+          row.appendChild(cell2);
+          row.appendChild(cell3);
+          tblBody.appendChild(row);
+        });
+
+        tbl.innerHTML = header.innerHTML + tblBody.innerHTML;
+      }
+
+      window.onload = function () {
+        console.log("onload");
+
+        sock = new WebSocket(wsuri);
+
+        sock.onopen = function () {
+          console.log("connected to " + wsuri);
+        };
+
+        sock.onclose = function (e) {
+          console.log("connection closed (" + e.code + ")");
+        };
+
+        sock.onmessage = function (e) {
+          createTable(e.data);
+          console.log("message received: " + e.data);
+        };
+      };
+
+      function send() {
+        var msg = document.getElementById("message").value;
+        sock.send(msg);
+      }
+    </script>
+    <h1>k8s-resource-client ops view</h1>
+    <!--
+    <form>
+      <p>Message: <input id="message" type="text" value="Hello, world!" /></p>
+    </form>
+    <button onclick="send();">Send Message</button>
+-->
+    <table id="tableDiv"></table>
+  </body>
+</html>

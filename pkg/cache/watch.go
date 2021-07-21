@@ -60,6 +60,31 @@ func (w *WatchDetails) NopDrain() {
 	}
 }
 
+func (w *WatchDetails) Drain(ch chan<- interface{}, stopCh chan struct{}) {
+	go func() {
+		for {
+			select {
+			// Local stopCh for callers
+			case <-stopCh:
+				return
+			// Main stopCh for errors/controllers
+			case <-w.StopCh:
+				return
+			default:
+				i, shutdown := w.Queue.Get()
+				w.Logger.Info("processing queue",
+					zap.String("watcher", w.Key),
+				)
+				if shutdown {
+					ch <- i
+					return
+				}
+				ch <- i
+			}
+		}
+	}()
+}
+
 type Watcher struct {
 	informerFactory dynamicinformer.DynamicSharedInformerFactory
 	logger          *zap.Logger
@@ -93,19 +118,19 @@ func (w *Watcher) Watch(ctx context.Context, res resource.Resource, queueEvents 
 	if details.QueueEvents {
 		informer.AddEventHandler(kcache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				w.logger.Info("watch add",
+				w.logger.Debug("watch add",
 					zap.String("obj", fmt.Sprintf("%v", obj)),
 				)
 				details.Queue.Add(obj)
 			},
 			DeleteFunc: func(obj interface{}) {
-				w.logger.Info("watch delete",
+				w.logger.Debug("watch delete",
 					zap.String("obj", fmt.Sprintf("%v", obj)),
 				)
 				details.Queue.Done(obj)
 			},
 			UpdateFunc: func(new, old interface{}) {
-				w.logger.Info("watch update",
+				w.logger.Debug("watch update",
 					zap.String("obj", fmt.Sprintf("%v", new)),
 				)
 				details.Queue.Add(new)
@@ -124,6 +149,15 @@ func (w *Watcher) Watch(ctx context.Context, res resource.Resource, queueEvents 
 
 	Watches.Store(details.Key, details)
 	return details
+}
+
+func WatcherForResource(r resource.Resource) (*WatchDetails, bool) {
+	v, ok := Watches.Load(r.Key())
+	if !ok {
+		return nil, ok
+	}
+	w, wok := v.(*WatchDetails)
+	return w, wok
 }
 
 func WatcherList(onlyRunning bool) []*WatchDetails {
