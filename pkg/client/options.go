@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 
+	"github.com/wwitzel3/k8s-resource-client/pkg/cache"
 	"go.uber.org/zap"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -58,6 +59,12 @@ func WithServerResourcesFn(fn func(context.Context, kubernetes.Interface) (disco
 func WithSubjectAccessFn(fn func(context.Context, kubernetes.Interface) (typedAuthv1.SelfSubjectAccessReviewInterface, error)) ClientOption {
 	return func(c *Client) {
 		c.SubjectAccessFn = fn
+	}
+}
+
+func WithWatcherFn(fn func(context.Context, *zap.Logger, dynamic.Interface) (*cache.Watcher, error)) ClientOption {
+	return func(c *Client) {
+		c.WatcherFn = fn
 	}
 }
 

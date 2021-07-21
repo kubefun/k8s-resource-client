@@ -17,9 +17,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/wwitzel3/k8s-resource-client/pkg/cache"
 	"github.com/wwitzel3/k8s-resource-client/pkg/client"
 	"github.com/wwitzel3/k8s-resource-client/pkg/errors"
 )
+
+var config = &rest.Config{QPS: 400, Burst: 800}
 
 func TestNewClientNoRestConfig(t *testing.T) {
 	_, err := client.NewClient(context.TODO())
@@ -30,17 +33,24 @@ func TestNewClientClientsetFnErr(t *testing.T) {
 	cFn := func(ctx context.Context, _ *rest.Config) (kubernetes.Interface, error) {
 		return nil, &errors.K8SNewForConfig{Err: fmt.Errorf("bad clientset")}
 	}
-	config := &rest.Config{QPS: 400, Burst: 800}
 
 	_, err := client.NewClient(context.TODO(), client.WithClientsetFn(cFn), client.WithRESTConfig(config))
 	assert.EqualError(t, err, "K8SNewForConfig - bad clientset")
+}
+
+func TestNewClientWatcherFnErr(t *testing.T) {
+	wFn := func(context.Context, *zap.Logger, dynamic.Interface) (*cache.Watcher, error) {
+		return nil, fmt.Errorf("bad watcher fn")
+	}
+
+	_, err := client.NewClient(context.TODO(), client.WithWatcherFn(wFn), client.WithRESTConfig(config))
+	assert.EqualError(t, err, "bad watcher fn")
 }
 
 func TestNewClientDynamicClientFnErr(t *testing.T) {
 	cFn := func(ctx context.Context, _ *rest.Config) (dynamic.Interface, error) {
 		return nil, &errors.K8SNewForConfig{Err: fmt.Errorf("bad dynamic")}
 	}
-	config := &rest.Config{QPS: 400, Burst: 800}
 
 	_, err := client.NewClient(context.TODO(), client.WithDynamicClientFn(cFn), client.WithRESTConfig(config))
 	assert.EqualError(t, err, "K8SNewForConfig - bad dynamic")
@@ -50,7 +60,6 @@ func TestNewClientServerResourcesFnErr(t *testing.T) {
 	srFn := func(_ context.Context, clientset kubernetes.Interface) (discovery.ServerResourcesInterface, error) {
 		return nil, fmt.Errorf("server resources err")
 	}
-	config := &rest.Config{QPS: 400, Burst: 800}
 
 	_, err := client.NewClient(context.TODO(), client.WithServerResourcesFn(srFn), client.WithRESTConfig(config))
 	assert.EqualError(t, err, "server resources err")
@@ -60,7 +69,6 @@ func TestNewClientSubjectAccessFnErr(t *testing.T) {
 	saFn := func(_ context.Context, clientset kubernetes.Interface) (typedAuthv1.SelfSubjectAccessReviewInterface, error) {
 		return nil, fmt.Errorf("subject access error")
 	}
-	config := &rest.Config{QPS: 400, Burst: 800}
 
 	_, err := client.NewClient(context.TODO(), client.WithSubjectAccessFn(saFn), client.WithRESTConfig(config))
 	assert.EqualError(t, err, "subject access error")
@@ -93,7 +101,6 @@ func TestNewClientRestConfigWarnings(t *testing.T) {
 	assert.True(t, burstWarning)
 }
 func TestNewClient(t *testing.T) {
-	config := &rest.Config{QPS: 400, Burst: 800}
 	c, err := client.NewClient(context.TODO(), client.WithRESTConfig(config))
 	if err != nil {
 		t.Fatal(err)
@@ -107,7 +114,6 @@ func TestNewClient(t *testing.T) {
 func TestNewClientOptions(t *testing.T) {
 	ctx := context.TODO()
 
-	config := &rest.Config{QPS: 400, Burst: 800}
 	clientset, err := client.NewClientset(ctx, config)
 
 	clientsetFn := func(context.Context, *rest.Config) (kubernetes.Interface, error) {
@@ -122,6 +128,12 @@ func TestNewClientOptions(t *testing.T) {
 		return clientset.AuthorizationV1().SelfSubjectAccessReviews(), nil
 	}
 
+	dclient, err := client.NewDynamicClient(context.TODO(), config)
+	assert.Nil(t, err)
+	wFn := func(context.Context, *zap.Logger, dynamic.Interface) (*cache.Watcher, error) {
+		return cache.NewWatcher(context.TODO(), cache.WithDynamicClient(dclient))
+	}
+
 	c, err := client.NewClient(context.TODO(),
 		client.WithNamespaceMode(client.Explicit),
 		client.WithResourceMode(client.Explicit),
@@ -130,6 +142,7 @@ func TestNewClientOptions(t *testing.T) {
 		client.WithClientsetFn(clientsetFn),
 		client.WithServerResourcesFn(srFn),
 		client.WithSubjectAccessFn(saFn),
+		client.WithWatcherFn(wFn),
 	)
 	if err != nil {
 		t.Error(err)

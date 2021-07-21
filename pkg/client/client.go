@@ -110,7 +110,7 @@ func (c *Client) UpdateRESTConfig(ctx context.Context, config *rest.Config) erro
 
 	watcher, err := c.WatcherFn(ctx, c.Logger, c.dynamic)
 	if err != nil {
-		return nil
+		return err
 	}
 	c.watcher = watcher
 	return nil

@@ -26,7 +26,7 @@ type NilRESTConfig struct {
 }
 
 func (e *NilRESTConfig) Error() string {
-	return "NilRESTConfig - cannot create client"
+	return "NilRESTConfig - cannot create client, use WithRESTConfig option"
 }
 
 type K8SNewForConfig struct {
