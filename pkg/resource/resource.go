@@ -131,7 +131,6 @@ type ResourceAccess interface {
 	Allowed(resource Resource, verb string) bool
 	AllowedAll(resource Resource, verbs []string) bool
 	AllowedAny(resource Resource, verbs []string) bool
-	FilterAllowed(resources []Resource, verbs []string) []Resource
 	String() string
 }
 
@@ -201,18 +200,6 @@ func (r *resourceAccess) Allowed(resource Resource, verb string) bool {
 	}
 
 	return statusIntAsBool(s)
-}
-
-// FilterAllowed returns a filtered list of all resources that allow the verbs from the
-// resource access map.
-func (r *resourceAccess) FilterAllowed(resources []Resource, verbs []string) []Resource {
-	allowedFor := []Resource{}
-	for _, resource := range resources {
-		if r.AllowedAll(resource, verbs) {
-			allowedFor = append(allowedFor, resource)
-		}
-	}
-	return allowedFor
 }
 
 // AllowedAll checks if all of the given verbs are allowed for the GVK.
