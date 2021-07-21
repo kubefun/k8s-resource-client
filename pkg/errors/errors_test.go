@@ -32,7 +32,7 @@ func TestNilRESTConfigError(t *testing.T) {
 	err := &errors.NilRESTConfig{}
 
 	assert.NotNil(t, err)
-	assert.Equal(t, err.Error(), "NilRESTConfig - cannot create client")
+	assert.Equal(t, err.Error(), "NilRESTConfig - cannot create client, use WithRESTConfig option")
 }
 
 func TestK8SNewForConfig(t *testing.T) {

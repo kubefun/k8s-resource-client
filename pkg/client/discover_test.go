@@ -72,7 +72,7 @@ func TestAutoDiscoverNamespaces(t *testing.T) {
 }
 
 func TestResourceListForNamespace(t *testing.T) {
-	assert.Len(t, cache.Resources.GetResources("default"), 0)
+	assert.Len(t, cache.Resources.Get("default"), 0)
 	ctx := context.TODO()
 
 	config := &rest.Config{QPS: 400, Burst: 800}
@@ -98,7 +98,7 @@ func TestResourceListForNamespace(t *testing.T) {
 }
 
 func TestAutoDiscoverResources(t *testing.T) {
-	assert.Len(t, cache.Resources.GetResources("default"), 0)
+	assert.Len(t, cache.Resources.Get("default"), 0)
 	ctx := context.TODO()
 
 	config := &rest.Config{QPS: 400, Burst: 800}
@@ -123,7 +123,7 @@ func TestAutoDiscoverResources(t *testing.T) {
 }
 
 func TestAutoDiscoverResourcesCluster(t *testing.T) {
-	assert.Len(t, cache.Resources.GetResources("default"), 0)
+	assert.Len(t, cache.Resources.Get("default"), 0)
 	ctx := context.TODO()
 
 	config := &rest.Config{QPS: 400, Burst: 800}
@@ -148,7 +148,7 @@ func TestAutoDiscoverResourcesCluster(t *testing.T) {
 }
 
 func TestAutoDiscoverResourcesErr(t *testing.T) {
-	assert.Len(t, cache.Resources.GetResources("default"), 0)
+	assert.Len(t, cache.Resources.Get("default"), 0)
 	ctx := context.TODO()
 
 	config := &rest.Config{QPS: 400, Burst: 800}

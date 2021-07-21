@@ -28,6 +28,14 @@ type Resource struct {
 	APIResource      metav1.APIResource
 }
 
+func (r Resource) GroupVersionResource() schema.GroupVersionResource {
+	return schema.GroupVersionResource{
+		Group:    r.GroupVersionKind.Group,
+		Version:  r.GroupVersionKind.Version,
+		Resource: r.APIResource.Name,
+	}
+}
+
 func (r Resource) Key() string {
 	key := ""
 	if r.Namespace != "" {

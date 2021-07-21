@@ -19,9 +19,9 @@ func AutoDiscoverResources(ctx context.Context, client *Client) error {
 	}
 	for _, resource := range resources {
 		if resource.APIResource.Namespaced {
-			cache.Resources.AddResources("namespace", resource)
+			cache.Resources.Add("namespace", resource)
 		} else {
-			cache.Resources.AddResources("cluster", resource)
+			cache.Resources.Add("cluster", resource)
 		}
 	}
 

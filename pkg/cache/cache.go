@@ -26,7 +26,7 @@ type ResourceCache struct {
 	_map *sync.Map
 }
 
-func (r *ResourceCache) AddResources(key string, resources ...resource.Resource) {
+func (r *ResourceCache) Add(key string, resources ...resource.Resource) {
 	resources = unique(resources)
 
 	v, loaded := r._map.LoadOrStore(key, resources)
@@ -38,7 +38,7 @@ func (r *ResourceCache) AddResources(key string, resources ...resource.Resource)
 	}
 }
 
-func (r *ResourceCache) GetResources(key string) []resource.Resource {
+func (r *ResourceCache) Get(key string) []resource.Resource {
 	v, loaded := r._map.Load(key)
 	if !loaded {
 		return []resource.Resource{}
