@@ -11,24 +11,54 @@ import (
 
 var _ dynamicinformer.DynamicSharedInformerFactory = (*FakeDynamicSharedInformerFactory)(nil)
 
-type FakeDynamicSharedInformerFactory struct{}
+type FakeDynamicSharedInformerFactory struct {
+	GenericInformer *FakeGenericInformer
+}
+
+func NewFakeDynamicSharedInformerFactory() *FakeDynamicSharedInformerFactory {
+	return &FakeDynamicSharedInformerFactory{
+		GenericInformer: NewFakeGenericInformer(),
+	}
+}
 
 func (d FakeDynamicSharedInformerFactory) Start(stopCh <-chan struct{}) {}
 func (d FakeDynamicSharedInformerFactory) ForResource(gvr schema.GroupVersionResource) informers.GenericInformer {
-	return FakeGenericInformer{}
+	return d.GenericInformer
 }
 func (d FakeDynamicSharedInformerFactory) WaitForCacheSync(stopCh <-chan struct{}) map[schema.GroupVersionResource]bool {
 	return map[schema.GroupVersionResource]bool{}
 }
 
-type FakeGenericInformer struct{}
+type FakeGenericInformer struct {
+	SharedIndexInformer *FakeSharedIndexInformer
+}
 
-func (s FakeGenericInformer) Informer() cache.SharedIndexInformer { return FakeSharedIndexInformer{} }
-func (s FakeGenericInformer) Lister() cache.GenericLister         { return nil }
+func NewFakeGenericInformer() *FakeGenericInformer {
+	return &FakeGenericInformer{
+		SharedIndexInformer: NewFakeSharedIndexInformer(),
+	}
+}
 
-type FakeSharedIndexInformer struct{}
+func (s FakeGenericInformer) Informer() cache.SharedIndexInformer {
+	return s.SharedIndexInformer
+}
 
-func (s FakeSharedIndexInformer) AddEventHandler(handler cache.ResourceEventHandler) {}
+func (s FakeGenericInformer) Lister() cache.GenericLister { return nil }
+
+type FakeSharedIndexInformer struct {
+	Handlers []cache.ResourceEventHandler
+}
+
+func NewFakeSharedIndexInformer() *FakeSharedIndexInformer {
+	return &FakeSharedIndexInformer{
+		Handlers: []cache.ResourceEventHandler{},
+	}
+}
+
+func (s *FakeSharedIndexInformer) AddEventHandler(handler cache.ResourceEventHandler) {
+	s.Handlers = append(s.Handlers, handler)
+}
+
 func (s FakeSharedIndexInformer) AddEventHandlerWithResyncPeriod(handler cache.ResourceEventHandler, resyncPeriod time.Duration) {
 }
 func (s FakeSharedIndexInformer) GetStore() cache.Store           { return nil }

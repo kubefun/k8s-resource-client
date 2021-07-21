@@ -79,6 +79,7 @@ type Watcher struct {
 
 func NewWatcher(ctx context.Context, options ...WatcherOption) (*Watcher, error) {
 	w := &Watcher{}
+
 	for _, opt := range options {
 		opt(w)
 	}
@@ -194,7 +195,7 @@ func WatchCount(onlyRunning bool) int {
 }
 
 func WatchErrorHandlerFactory(logger *zap.Logger, key string, stopCh chan<- struct{}) func(r *kcache.Reflector, err error) {
-	return func(r *kcache.Reflector, err error) {
+	return func(_ *kcache.Reflector, err error) {
 		switch {
 		case apierrors.IsResourceExpired(err) || apierrors.IsGone(err):
 			logger.Error("watch closed",
