@@ -69,27 +69,27 @@ func TestWatcherHelpers(t *testing.T) {
 	wd := w.Watch(context.TODO(), deploymentResource, false)
 	assert.NotNil(t, wd)
 
-	v, ok := cache.WatcherForResource(deploymentResource)
+	v, ok := cache.WatchForResource(deploymentResource)
 	assert.True(t, ok)
 	assert.NotNil(t, v)
 
-	_, ok = cache.WatcherForResource(resource.Resource{})
+	_, ok = cache.WatchForResource(resource.Resource{})
 	assert.False(t, ok)
 
 	podWatcher := w.Watch(context.TODO(), podResource, false)
-	watchers := cache.WatcherList(false)
+	watchers := cache.WatchList(false)
 	assert.Len(t, watchers, 2)
 	assert.Equal(t, cache.WatchCount(false), 2)
 
 	podWatcher.Stop()
-	watchers = cache.WatcherList(true)
+	watchers = cache.WatchList(true)
 	assert.Len(t, watchers, 1)
 	assert.Equal(t, cache.WatchCount(true), 1)
 }
 
 func TestWatchIsRunning(t *testing.T) {
 	stopCh := make(chan struct{})
-	w := &cache.WatchDetails{StopCh: stopCh}
+	w := &cache.WatchDetail{StopCh: stopCh}
 	assert.True(t, w.IsRunning())
 
 	close(stopCh)
@@ -97,11 +97,32 @@ func TestWatchIsRunning(t *testing.T) {
 	assert.False(t, w.IsRunning())
 }
 
+func TestWatchStopAll(t *testing.T) {
+	dsifFake := wtesting.NewFakeDynamicSharedInformerFactory()
+	dynFake := ctesting.FakeDynamicClient{}
+
+	w, err := cache.NewWatcher(context.TODO(),
+		cache.WithDynamicClient(dynFake),
+		cache.WithDynamicSharedInformerFactory(dsifFake),
+		cache.WithLogger(zap.NewNop()),
+	)
+	assert.Nil(t, err)
+	assert.NotNil(t, w)
+
+	wd1 := w.Watch(context.TODO(), resource.Resource{Namespace: "foo"}, false)
+	wd2 := w.Watch(context.TODO(), resource.Resource{Namespace: "bar"}, false)
+
+	cache.WatcherStop()
+
+	assert.False(t, wd1.IsRunning())
+	assert.False(t, wd2.IsRunning())
+}
+
 func TestWatchDrainStopMain(t *testing.T) {
 	eventCh := make(chan interface{})
 	stopCh := make(chan struct{})
 
-	w := &cache.WatchDetails{StopCh: make(chan struct{}), Queue: workqueue.New(), Logger: zap.NewNop()}
+	w := &cache.WatchDetail{StopCh: make(chan struct{}), Queue: workqueue.New(), Logger: zap.NewNop()}
 	assert.True(t, w.IsRunning())
 
 	w.Drain(eventCh, stopCh)
@@ -119,7 +140,7 @@ func TestWatchDrainStopLocal(t *testing.T) {
 	eventCh := make(chan interface{})
 	stopCh := make(chan struct{})
 
-	w := &cache.WatchDetails{StopCh: make(chan struct{}), Queue: workqueue.New(), Logger: zap.NewNop()}
+	w := &cache.WatchDetail{StopCh: make(chan struct{}), Queue: workqueue.New(), Logger: zap.NewNop()}
 	assert.True(t, w.IsRunning())
 
 	w.Drain(eventCh, stopCh)
@@ -137,7 +158,7 @@ func TestWatchDrainShutdown(t *testing.T) {
 	eventCh := make(chan interface{})
 	stopCh := make(chan struct{})
 
-	w := &cache.WatchDetails{StopCh: make(chan struct{}), Queue: workqueue.New(), Logger: zap.NewNop()}
+	w := &cache.WatchDetail{StopCh: make(chan struct{}), Queue: workqueue.New(), Logger: zap.NewNop()}
 	assert.True(t, w.IsRunning())
 
 	i := "shutdown"
@@ -186,7 +207,8 @@ func TestWatcherHelpersBad(t *testing.T) {
 	cache.Watches = &sync.Map{}
 	cache.Watches.Store("test", "test")
 	assert.Equal(t, 0, cache.WatchCount(false))
-	assert.Len(t, cache.WatcherList(false), 0)
+	assert.Len(t, cache.WatchList(false), 0)
+	cache.WatcherStop()
 	cache.Watches = &sync.Map{}
 }
 
