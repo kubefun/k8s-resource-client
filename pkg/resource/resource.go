@@ -9,8 +9,6 @@ import (
 	"go.uber.org/zap"
 	authv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/discovery"
@@ -28,16 +26,6 @@ type Resource struct {
 	Namespace        string
 	GroupVersionKind schema.GroupVersionKind
 	APIResource      metav1.APIResource
-}
-
-func (r Resource) Object() runtime.Object {
-	return &unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"Namespace":        r.Namespace,
-			"GroupVersionKind": r.GroupVersionKind,
-			"APIResource":      r.APIResource,
-		},
-	}
 }
 
 func (r Resource) GroupVersionResource() schema.GroupVersionResource {

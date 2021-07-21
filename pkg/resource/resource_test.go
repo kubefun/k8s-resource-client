@@ -141,11 +141,6 @@ func TestResourceListPartialListErr(t *testing.T) {
 	assert.Nil(t, err)
 	assert.True(t, resourceListWarning)
 }
-
-func TestResourceObject(t *testing.T) {
-	deploymentResource.Object()
-}
-
 func TestResourceGVR(t *testing.T) {
 	gvr := deploymentResource.GroupVersionResource()
 	assert.Equal(t, "apps", gvr.Group)
