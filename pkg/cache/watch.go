@@ -118,9 +118,7 @@ func WatcherStop() {
 		if !ok {
 			return true
 		}
-		if value.IsRunning() {
-			close(value.StopCh)
-		}
+		value.Stop()
 		return true
 	})
 }
