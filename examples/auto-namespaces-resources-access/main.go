@@ -83,7 +83,7 @@ func main() {
 		if !ok {
 			fmt.Println("not found")
 		}
-		watcher, ok := v.(*cache.WatchDetails)
+		watcher, ok := v.(*cache.WatchDetail)
 		if !ok {
 			fmt.Println("bad conversion")
 		}
