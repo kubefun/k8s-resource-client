@@ -47,7 +47,9 @@ func (w *WatchDetail) IsRunning() bool {
 
 // Stop closes the StopCh shutting down the Drain and Informer loops.
 func (w *WatchDetail) Stop() {
-	close(w.StopCh)
+	if w.IsRunning() {
+		close(w.StopCh)
+	}
 }
 
 // Drain will get events off of the WatchDetail.Queue and send them to the provided channel.
