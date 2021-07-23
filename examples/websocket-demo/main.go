@@ -127,7 +127,7 @@ func main() {
 		panic(err)
 	}
 
-	r6eClient.WatchAllResources(ctx, client, true)
+	r6eClient.WatchAllResources(ctx, client, "default", true)
 
 	http.Handle("/", websocket.Handler(Echo))
 	if err := http.ListenAndServe("127.0.0.1:1234", nil); err != nil {

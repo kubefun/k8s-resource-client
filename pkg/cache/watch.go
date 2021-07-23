@@ -84,6 +84,7 @@ func (w *WatchDetail) Drain(ch chan<- interface{}, stopCh chan struct{}) {
 type Watcher struct {
 	dclient         dynamic.Interface
 	informerFactory dynamicinformer.DynamicSharedInformerFactory
+	namespace       string
 	logger          *zap.Logger
 }
 
@@ -104,7 +105,9 @@ func NewWatcher(ctx context.Context, options ...WatcherOption) (*Watcher, error)
 		return nil, fmt.Errorf("dynamic client nil, use WithDynamicClient option")
 	}
 
-	if w.informerFactory == nil {
+	if w.namespace != "" && w.informerFactory == nil {
+		w.informerFactory = dynamicinformer.NewFilteredDynamicSharedInformerFactory(w.dclient, DefaultResyncDuration, w.namespace, nil)
+	} else if w.informerFactory == nil {
 		w.informerFactory = dynamicinformer.NewDynamicSharedInformerFactory(w.dclient, DefaultResyncDuration)
 	}
 
@@ -126,7 +129,10 @@ func WatcherStop() {
 // Watch creates a new WatchDetail and starts the watch loop for the given Resource
 // If queueEvents is true, all events for the resource will be added to the WatcheDetail.Queue
 // To handle the events use WatchDetail.Drain
-func (w *Watcher) Watch(ctx context.Context, res resource.Resource, queueEvents bool) *WatchDetail {
+func (w *Watcher) Watch(ctx context.Context, res resource.Resource, queueEvents bool) (*WatchDetail, error) {
+	if w.namespace != "" && res.Namespace != w.namespace {
+		return nil, fmt.Errorf("unable to create watch, resource namespace:%s does not match watcher namespace:%s", res.Namespace, w.namespace)
+	}
 	resourceInformer := w.informerFactory.ForResource(res.GroupVersionResource())
 
 	lister := resourceInformer.Lister()
@@ -177,7 +183,7 @@ func (w *Watcher) Watch(ctx context.Context, res resource.Resource, queueEvents 
 	}()
 
 	Watches.Store(details.Key, details)
-	return details
+	return details, nil
 }
 
 // WatchForResource returns a WatchDetail for the given Resource.

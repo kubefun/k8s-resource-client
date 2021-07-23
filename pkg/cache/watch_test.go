@@ -25,8 +25,18 @@ func TestNewWatcherErr(t *testing.T) {
 	assert.EqualError(t, err, "dynamic client nil, use WithDynamicClient option")
 }
 
+func TestWatchNamespaceMismatch(t *testing.T) {
+	dynFake := ctesting.FakeDynamicClient{}
+	w, err := cache.NewWatcher(context.TODO(), cache.WithDynamicClient(dynFake), cache.WithNamespace("default"))
+	assert.Nil(t, err)
+
+	_, err = w.Watch(context.TODO(), resource.Resource{Namespace: "test"}, false)
+	assert.EqualError(t, err, "unable to create watch, resource namespace:test does not match watcher namespace:default")
+}
+
 func TestNewWatcherDefaultInformerFactory(t *testing.T) {
 	dynFake := ctesting.FakeDynamicClient{}
+
 	_, err := cache.NewWatcher(context.TODO(), cache.WithDynamicClient(dynFake))
 	assert.Nil(t, err)
 }
@@ -43,7 +53,8 @@ func TestWatcherQueueEvents(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, w)
 
-	wd := w.Watch(context.TODO(), deploymentResource, true)
+	wd, err := w.Watch(context.TODO(), deploymentResource, true)
+	assert.Nil(t, err)
 	assert.NotNil(t, wd)
 
 	assert.Len(t, dsifFake.GenericInformer.SharedIndexInformer.Handlers, 1)
@@ -66,7 +77,8 @@ func TestWatcherHelpers(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, w)
 
-	wd := w.Watch(context.TODO(), deploymentResource, false)
+	wd, err := w.Watch(context.TODO(), deploymentResource, false)
+	assert.Nil(t, err)
 	assert.NotNil(t, wd)
 
 	v, ok := cache.WatchForResource(deploymentResource)
@@ -76,7 +88,8 @@ func TestWatcherHelpers(t *testing.T) {
 	_, ok = cache.WatchForResource(resource.Resource{})
 	assert.False(t, ok)
 
-	podWatcher := w.Watch(context.TODO(), podResource, false)
+	podWatcher, err := w.Watch(context.TODO(), podResource, false)
+	assert.Nil(t, err)
 	watchers := cache.WatchList(false)
 	assert.Len(t, watchers, 2)
 	assert.Equal(t, cache.WatchCount(false), 2)
@@ -109,8 +122,10 @@ func TestWatchStopAll(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, w)
 
-	wd1 := w.Watch(context.TODO(), resource.Resource{Namespace: "foo"}, false)
-	wd2 := w.Watch(context.TODO(), resource.Resource{Namespace: "bar"}, false)
+	wd1, err := w.Watch(context.TODO(), resource.Resource{Namespace: "foo"}, false)
+	assert.Nil(t, err)
+	wd2, err := w.Watch(context.TODO(), resource.Resource{Namespace: "bar"}, false)
+	assert.Nil(t, err)
 
 	cache.WatcherStop()
 

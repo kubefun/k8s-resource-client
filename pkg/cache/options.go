@@ -25,3 +25,9 @@ func WithLogger(logger *zap.Logger) WatcherOption {
 		w.logger = logger
 	}
 }
+
+func WithNamespace(namespace string) WatcherOption {
+	return func(w *Watcher) {
+		w.namespace = namespace
+	}
+}

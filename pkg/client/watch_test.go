@@ -16,7 +16,8 @@ func TestWatchResource(t *testing.T) {
 		client.WithLogger(zap.NewNop()),
 	)
 	assert.Nil(t, err)
-	w := client.WatchResource(context.TODO(), c, resource.Resource{}, false)
+	w, err := client.WatchResource(context.TODO(), c, resource.Resource{}, "", false)
+	assert.Nil(t, err)
 	assert.NotNil(t, w)
 }
 
@@ -26,5 +27,5 @@ func TestWatchAllResource(t *testing.T) {
 		client.WithLogger(zap.NewNop()),
 	)
 	assert.Nil(t, err)
-	client.WatchAllResources(context.TODO(), c, false)
+	client.WatchAllResources(context.TODO(), c, "", false)
 }
