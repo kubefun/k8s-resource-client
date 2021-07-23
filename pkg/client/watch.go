@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func WatchResource(ctx context.Context, client *Client, res resource.Resource, queueEvents bool) *cache.WatchDetails {
+func WatchResource(ctx context.Context, client *Client, res resource.Resource, queueEvents bool) *cache.WatchDetail {
 	client.Logger.Info("creating ListWatch",
 		zap.String("resource", res.APIResource.Name),
 	)

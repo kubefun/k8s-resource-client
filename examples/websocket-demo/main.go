@@ -36,9 +36,9 @@ func Echo(ws *websocket.Conn) {
 	eventCh := make(chan interface{})
 	stopCh := make(chan struct{})
 
-	pods, _ := r6eCache.WatcherForResource(resource.Resource{GroupVersionKind: schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"}})
-	deployments, _ := r6eCache.WatcherForResource(resource.Resource{GroupVersionKind: schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}})
-	replicaSets, _ := r6eCache.WatcherForResource(resource.Resource{GroupVersionKind: schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "ReplicaSet"}})
+	pods, _ := r6eCache.WatchForResource(resource.Resource{GroupVersionKind: schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"}})
+	deployments, _ := r6eCache.WatchForResource(resource.Resource{GroupVersionKind: schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}})
+	replicaSets, _ := r6eCache.WatchForResource(resource.Resource{GroupVersionKind: schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "ReplicaSet"}})
 
 	// We care about Pods, Deployments, and ReplicaSets
 	// Send our event channel in to these watchers.
@@ -55,7 +55,7 @@ func Echo(ws *websocket.Conn) {
 	}
 }
 
-func sendUpdate(ws *websocket.Conn, pods, deployments, replicasets *r6eCache.WatchDetails) {
+func sendUpdate(ws *websocket.Conn, pods, deployments, replicasets *r6eCache.WatchDetail) {
 	fields := Fields{Fields: []Field{}}
 
 	ts := Field{Key: "timestamp", Value: time.Now().UTC().String(), Action: ""}
@@ -84,6 +84,9 @@ func main() {
 	} else {
 		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
 	}
+
+	autoDiscoverNamespaces := flag.Bool("discover-namespaces", false, "auto discover namespaces")
+
 	flag.Parse()
 
 	// use the current context in kubeconfig
@@ -102,9 +105,11 @@ func main() {
 		panic(err)
 	}
 
-	err = r6eClient.AutoDiscoverNamespaces(ctx, client)
-	if err != nil {
-		panic(err)
+	if *autoDiscoverNamespaces {
+		err = r6eClient.AutoDiscoverNamespaces(ctx, client)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	if err := r6eClient.AutoDiscoverResources(ctx, client); err != nil {

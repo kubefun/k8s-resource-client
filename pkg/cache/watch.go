@@ -21,18 +21,22 @@ var (
 	Watches               = &sync.Map{}
 )
 
-type WatchDetails struct {
-	Informer    kcache.SharedInformer
-	Lister      kcache.GenericLister
-	StopCh      chan struct{}
-	Resource    resource.Resource
-	Key         string
-	QueueEvents bool
+// WatchDetail holds the details of an Informer and Lister for a specific resource.
+// An optionally configured event queue.
+type WatchDetail struct {
+	Informer kcache.SharedInformer
+	Lister   kcache.GenericLister
+	StopCh   chan struct{}
+	Resource resource.Resource
+	Key      string
+	Logger   *zap.Logger
+
+	queueEvents bool
 	Queue       *workqueue.Type
-	Logger      *zap.Logger
 }
 
-func (w *WatchDetails) IsRunning() bool {
+// IsRunning returns true if the Informer loop for the WatchDetail is running.
+func (w *WatchDetail) IsRunning() bool {
 	select {
 	case <-w.StopCh:
 		return false
@@ -41,11 +45,15 @@ func (w *WatchDetails) IsRunning() bool {
 	}
 }
 
-func (w *WatchDetails) Stop() {
-	close(w.StopCh)
+// Stop closes the StopCh shutting down the Drain and Informer loops.
+func (w *WatchDetail) Stop() {
+	if w.IsRunning() {
+		close(w.StopCh)
+	}
 }
 
-func (w *WatchDetails) Drain(ch chan<- interface{}, stopCh chan struct{}) {
+// Drain will get events off of the WatchDetail.Queue and send them to the provided channel.
+func (w *WatchDetail) Drain(ch chan<- interface{}, stopCh chan struct{}) {
 	go func() {
 		for {
 			select {
@@ -71,12 +79,16 @@ func (w *WatchDetails) Drain(ch chan<- interface{}, stopCh chan struct{}) {
 	}()
 }
 
+// Watcher holds referenecs to the Kubernetes types and a logger.
+// Use NewWatcher to create instances of Watcher.
 type Watcher struct {
 	dclient         dynamic.Interface
 	informerFactory dynamicinformer.DynamicSharedInformerFactory
 	logger          *zap.Logger
 }
 
+// NewWatcher creates a Watcher object. This object is used to hold the reference
+// to the Kubernetes types that implement Informers and Listers.
 func NewWatcher(ctx context.Context, options ...WatcherOption) (*Watcher, error) {
 	w := &Watcher{}
 
@@ -99,25 +111,40 @@ func NewWatcher(ctx context.Context, options ...WatcherOption) (*Watcher, error)
 	return w, nil
 }
 
-func (w *Watcher) Watch(ctx context.Context, res resource.Resource, queueEvents bool) *WatchDetails {
+// WatcherStop stops all running watchers.
+func WatcherStop() {
+	Watches.Range(func(k, v interface{}) bool {
+		value, ok := v.(*WatchDetail)
+		if !ok {
+			return true
+		}
+		value.Stop()
+		return true
+	})
+}
+
+// Watch creates a new WatchDetail and starts the watch loop for the given Resource
+// If queueEvents is true, all events for the resource will be added to the WatcheDetail.Queue
+// To handle the events use WatchDetail.Drain
+func (w *Watcher) Watch(ctx context.Context, res resource.Resource, queueEvents bool) *WatchDetail {
 	resourceInformer := w.informerFactory.ForResource(res.GroupVersionResource())
 
 	lister := resourceInformer.Lister()
 	informer := resourceInformer.Informer()
 
-	details := &WatchDetails{
+	details := &WatchDetail{
 		Key:         res.Key(),
 		Resource:    res,
 		Informer:    informer,
 		Lister:      lister,
-		QueueEvents: queueEvents,
+		queueEvents: queueEvents,
 		Queue:       workqueue.NewNamed(res.Key()),
 		StopCh:      make(chan struct{}),
 		Logger:      w.logger,
 	}
 
 	// boardcast function that will publish changes to a channel for clients
-	if details.QueueEvents {
+	if details.queueEvents {
 		informer.AddEventHandler(kcache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				w.logger.Debug("watch add",
@@ -153,19 +180,22 @@ func (w *Watcher) Watch(ctx context.Context, res resource.Resource, queueEvents 
 	return details
 }
 
-func WatcherForResource(r resource.Resource) (*WatchDetails, bool) {
+// WatchForResource returns a WatchDetail for the given Resource.
+func WatchForResource(r resource.Resource) (*WatchDetail, bool) {
 	v, ok := Watches.Load(r.Key())
 	if !ok {
 		return nil, ok
 	}
-	w, wok := v.(*WatchDetails)
+	w, wok := v.(*WatchDetail)
 	return w, wok
 }
 
-func WatcherList(onlyRunning bool) []*WatchDetails {
-	watches := []*WatchDetails{}
+// WatchList returns the current count of watchers from the cache.
+// If onlyRunning is true, the count will only include running watchers.
+func WatchList(onlyRunning bool) []*WatchDetail {
+	watches := []*WatchDetail{}
 	Watches.Range(func(k, v interface{}) bool {
-		value, ok := v.(*WatchDetails)
+		value, ok := v.(*WatchDetail)
 		if !ok {
 			return false
 		}
@@ -178,10 +208,12 @@ func WatcherList(onlyRunning bool) []*WatchDetails {
 	return watches
 }
 
+// WatchCount returns the current count of watchers from the cache.
+// If onlyRunning is true, the count will only include running watchers.
 func WatchCount(onlyRunning bool) int {
 	count := 0
 	Watches.Range(func(k, v interface{}) bool {
-		value, ok := v.(*WatchDetails)
+		value, ok := v.(*WatchDetail)
 		if !ok {
 			return false
 		}
@@ -194,6 +226,8 @@ func WatchCount(onlyRunning bool) int {
 	return count
 }
 
+// WatchErrorHandlerFactory handles Reflector errors and ensures the Informer loop is shutdown when
+// encountering an error.
 func WatchErrorHandlerFactory(logger *zap.Logger, key string, stopCh chan<- struct{}) func(r *kcache.Reflector, err error) {
 	return func(_ *kcache.Reflector, err error) {
 		switch {
