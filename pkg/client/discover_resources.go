@@ -13,7 +13,7 @@ import (
 // of a startup routine and a long-duration periodic task.
 func AutoDiscoverResources(ctx context.Context, client *Client) error {
 	client.Logger.Info("discovering resources")
-	resources, err := ResourceListForNamespace(ctx, client, "")
+	resources, err := ResourceList(ctx, client, false)
 	if err != nil {
 		return &errors.ResourceDiscoveryError{Err: []error{err}}
 	}
@@ -30,8 +30,8 @@ func AutoDiscoverResources(ctx context.Context, client *Client) error {
 
 // ResourceListForNamespace uses a Discovery Client and attempts to list all of the known resources for the given namespace.
 // This method can be used to populate initial resource lists as well as refresh existing caches.
-func ResourceListForNamespace(ctx context.Context, client *Client, namespace string) ([]resource.Resource, error) {
-	scopedResources, err := resource.ResourceList(ctx, client.Logger, client.serverResources, namespace)
+func ResourceList(ctx context.Context, client *Client, namespaced bool) ([]resource.Resource, error) {
+	scopedResources, err := resource.ResourceList(ctx, client.Logger, client.serverResources, namespaced)
 	if err != nil {
 		// TODO: consider if we want a typed-error
 		return nil, err

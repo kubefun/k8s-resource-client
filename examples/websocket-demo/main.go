@@ -10,7 +10,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"go.uber.org/zap"
 	"golang.org/x/net/websocket"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
@@ -19,6 +21,7 @@ import (
 
 	r6eCache "github.com/wwitzel3/k8s-resource-client/pkg/cache"
 	r6eClient "github.com/wwitzel3/k8s-resource-client/pkg/client"
+	"github.com/wwitzel3/k8s-resource-client/pkg/logging"
 	"github.com/wwitzel3/k8s-resource-client/pkg/resource"
 )
 
@@ -32,19 +35,37 @@ type Field struct {
 	Action string `json:"action"`
 }
 
+var podRes = resource.Resource{
+	APIResource: metav1.APIResource{
+		Name:         "pods",
+		SingularName: "pod",
+		Verbs:        []string{"list", "watch"},
+	},
+	GroupVersionKind: schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"},
+}
+
 func Echo(ws *websocket.Conn) {
 	eventCh := make(chan interface{})
 	stopCh := make(chan struct{})
 
-	pods, _ := r6eCache.WatchForResource(resource.Resource{GroupVersionKind: schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"}})
-	deployments, _ := r6eCache.WatchForResource(resource.Resource{GroupVersionKind: schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}})
-	replicaSets, _ := r6eCache.WatchForResource(resource.Resource{GroupVersionKind: schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "ReplicaSet"}})
-
-	// We care about Pods, Deployments, and ReplicaSets
-	// Send our event channel in to these watchers.
-	pods.Drain(eventCh, stopCh)
-	deployments.Drain(eventCh, stopCh)
-	replicaSets.Drain(eventCh, stopCh)
+	pods, err := r6eCache.WatchForResource(podRes)
+	if err != nil {
+		logging.Logger.Warn("pod watcher", zap.Error(err))
+	} else {
+		pods.Drain(eventCh, stopCh)
+	}
+	deployments, err := r6eCache.WatchForResource(resource.Resource{GroupVersionKind: schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}})
+	if err != nil {
+		logging.Logger.Warn("deployment watcher", zap.Error(err))
+	} else {
+		deployments.Drain(eventCh, stopCh)
+	}
+	replicaSets, err := r6eCache.WatchForResource(resource.Resource{GroupVersionKind: schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "ReplicaSet"}})
+	if err != nil {
+		logging.Logger.Warn("replicaset watcher", zap.Error(err))
+	} else {
+		replicaSets.Drain(eventCh, stopCh)
+	}
 
 	// Send the inital update
 	sendUpdate(ws, pods, deployments, replicaSets)
@@ -55,7 +76,7 @@ func Echo(ws *websocket.Conn) {
 	}
 }
 
-func sendUpdate(ws *websocket.Conn, pods, deployments, replicasets *r6eCache.WatchDetail) {
+func sendUpdate(ws *websocket.Conn, pods, deployments, replicasets r6eCache.ResourceLister) {
 	fields := Fields{Fields: []Field{}}
 
 	ts := Field{Key: "timestamp", Value: time.Now().UTC().String(), Action: ""}
@@ -64,14 +85,20 @@ func sendUpdate(ws *websocket.Conn, pods, deployments, replicasets *r6eCache.Wat
 	f := Field{Key: "watcher count", Value: fmt.Sprintf("%d", r6eCache.WatchCount(true)), Action: ""}
 	fields.Fields = append(fields.Fields, f)
 
-	podObjs, _ := pods.Lister.List(labels.Everything())
-	fields.Fields = append(fields.Fields, Field{Key: "pod_count", Value: fmt.Sprintf("%d", len(podObjs))})
+	if pods != nil {
+		podObjs, _ := pods.List(labels.Everything())
+		fields.Fields = append(fields.Fields, Field{Key: "pod_count", Value: fmt.Sprintf("%d", len(podObjs))})
+	}
 
-	depObjs, _ := deployments.Lister.List(labels.Everything())
-	fields.Fields = append(fields.Fields, Field{Key: "deployment_count", Value: fmt.Sprintf("%d", len(depObjs))})
+	if deployments != nil {
+		depObjs, _ := deployments.List(labels.Everything())
+		fields.Fields = append(fields.Fields, Field{Key: "deployment_count", Value: fmt.Sprintf("%d", len(depObjs))})
+	}
 
-	rsOjs, _ := replicasets.Lister.List(labels.Everything())
-	fields.Fields = append(fields.Fields, Field{Key: "replicaset_count", Value: fmt.Sprintf("%d", len(rsOjs))})
+	if replicasets != nil {
+		rsOjs, _ := replicasets.List(labels.Everything())
+		fields.Fields = append(fields.Fields, Field{Key: "replicaset_count", Value: fmt.Sprintf("%d", len(rsOjs))})
+	}
 
 	s, _ := json.CaseSensitiveJSONIterator().MarshalToString(fields)
 	websocket.Message.Send(ws, s)
@@ -123,11 +150,22 @@ func main() {
 	fmt.Printf("cluster resource count: %d\n", len(cResources))
 
 	// No resources provided this will init an empty access cache, all checks will be false
-	if err := r6eClient.AutoDiscoverAccess(ctx, client); err != nil {
+	if err := r6eClient.AutoDiscoverAccess(ctx, client, ""); err != nil {
 		panic(err)
 	}
 
-	r6eClient.WatchAllResources(ctx, client, "default", true)
+	namespaces := []string{"default", ""}
+	if err := r6eClient.UpdateResourceAccess(ctx, client, podRes, namespaces); err != nil {
+		panic(err)
+	}
+	// r6eClient.WatchAllResources(ctx, client, true, "")
+	for _, ns := range namespaces {
+		println(ns)
+		if r6eCache.Access.AllowedAll(ns, podRes, []string{"watch", "list"}) {
+			println("watching", podRes.Key(), ns)
+			r6eClient.WatchResource(ctx, client, podRes, true, []string{ns})
+		}
+	}
 
 	http.Handle("/", websocket.Handler(Echo))
 	if err := http.ListenAndServe("127.0.0.1:1234", nil); err != nil {

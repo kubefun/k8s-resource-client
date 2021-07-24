@@ -7,32 +7,63 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wwitzel3/k8s-resource-client/pkg/resource"
 	"go.uber.org/zap"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
+	"k8s.io/client-go/informers"
 	kcache "k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+
+	"github.com/wwitzel3/k8s-resource-client/pkg/logging"
+	"github.com/wwitzel3/k8s-resource-client/pkg/resource"
 )
 
 var (
 	DefaultResyncDuration = time.Second * 180
-	Watches               = &sync.Map{}
+	ResourceWatches       = &sync.Map{} // sync.Map{"resourceKey": [sync.Map{"namespace.resourceKey":"watchDetail"}]}
 )
 
 // WatchDetail holds the details of an Informer and Lister for a specific resource.
 // An optionally configured event queue.
 type WatchDetail struct {
 	Informer kcache.SharedInformer
-	Lister   kcache.GenericLister
 	StopCh   chan struct{}
 	Resource resource.Resource
-	Key      string
 	Logger   *zap.Logger
 
 	queueEvents bool
 	Queue       *workqueue.Type
+
+	namespace string
+	informer  informers.GenericInformer
+}
+
+var _ ResourceLister = (*WatchDetail)(nil)
+
+func (w *WatchDetail) Key() string {
+	return fmt.Sprintf("%s.%s", w.namespace, w.Resource.Key())
+}
+
+func (w *WatchDetail) Namespace() string {
+	return w.namespace
+}
+
+func (w *WatchDetail) List(selector labels.Selector) ([]runtime.Object, error) {
+	if w.namespace == metav1.NamespaceAll {
+		return w.informer.Lister().List(selector)
+	}
+	return w.informer.Lister().ByNamespace(w.namespace).List(selector)
+}
+
+func (w *WatchDetail) Get(name string) (runtime.Object, error) {
+	if w.namespace == metav1.NamespaceAll {
+		return w.informer.Lister().Get(name)
+	}
+	return w.informer.Lister().ByNamespace(w.namespace).Get(name)
 }
 
 // IsRunning returns true if the Informer loop for the WatchDetail is running.
@@ -116,12 +147,19 @@ func NewWatcher(ctx context.Context, options ...WatcherOption) (*Watcher, error)
 
 // WatcherStop stops all running watchers.
 func WatcherStop() {
-	Watches.Range(func(k, v interface{}) bool {
-		value, ok := v.(*WatchDetail)
+	ResourceWatches.Range(func(k, v interface{}) bool {
+		value, ok := v.(*sync.Map)
 		if !ok {
 			return true
 		}
-		value.Stop()
+		value.Range(func(k, v interface{}) bool {
+			detailValue, ok := v.(*WatchDetail)
+			if !ok {
+				return false
+			}
+			detailValue.Stop()
+			return true
+		})
 		return true
 	})
 }
@@ -129,20 +167,16 @@ func WatcherStop() {
 // Watch creates a new WatchDetail and starts the watch loop for the given Resource
 // If queueEvents is true, all events for the resource will be added to the WatcheDetail.Queue
 // To handle the events use WatchDetail.Drain
-func (w *Watcher) Watch(ctx context.Context, res resource.Resource, queueEvents bool) (*WatchDetail, error) {
-	if w.namespace != "" && res.Namespace != w.namespace {
-		return nil, fmt.Errorf("unable to create watch, resource namespace:%s does not match watcher namespace:%s", res.Namespace, w.namespace)
+func (w *Watcher) Watch(ctx context.Context, namespace string, res resource.Resource, queueEvents bool) (*WatchDetail, error) {
+	if w.namespace != "" && namespace != w.namespace {
+		return nil, fmt.Errorf("unable to create watch, resource namespace:%s does not match watcher namespace:%s", namespace, w.namespace)
 	}
-	resourceInformer := w.informerFactory.ForResource(res.GroupVersionResource())
+	genericInformer := w.informerFactory.ForResource(res.GroupVersionResource())
 
-	lister := resourceInformer.Lister()
-	informer := resourceInformer.Informer()
-
-	details := &WatchDetail{
-		Key:         res.Key(),
+	detail := &WatchDetail{
+		namespace:   namespace,
 		Resource:    res,
-		Informer:    informer,
-		Lister:      lister,
+		informer:    genericInformer,
 		queueEvents: queueEvents,
 		Queue:       workqueue.NewNamed(res.Key()),
 		StopCh:      make(chan struct{}),
@@ -150,65 +184,147 @@ func (w *Watcher) Watch(ctx context.Context, res resource.Resource, queueEvents 
 	}
 
 	// boardcast function that will publish changes to a channel for clients
-	if details.queueEvents {
-		informer.AddEventHandler(kcache.ResourceEventHandlerFuncs{
+	if detail.queueEvents {
+		genericInformer.Informer().AddEventHandler(kcache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				w.logger.Debug("watch add",
 					zap.String("obj", fmt.Sprintf("%v", obj)),
 				)
-				details.Queue.Add(obj)
+				detail.Queue.Add(obj)
 			},
 			DeleteFunc: func(obj interface{}) {
 				w.logger.Debug("watch delete",
 					zap.String("obj", fmt.Sprintf("%v", obj)),
 				)
-				details.Queue.Done(obj)
+				detail.Queue.Done(obj)
 			},
 			UpdateFunc: func(new, old interface{}) {
 				w.logger.Debug("watch update",
 					zap.String("obj", fmt.Sprintf("%v", new)),
 				)
-				details.Queue.Add(new)
+				detail.Queue.Add(new)
 			},
 		})
 	}
 
-	informer.SetWatchErrorHandler(WatchErrorHandlerFactory(w.logger, details.Key, details.StopCh))
+	genericInformer.Informer().SetWatchErrorHandler(WatchErrorHandlerFactory(w.logger, detail.Key(), detail.StopCh))
 
 	go func() {
 		w.logger.Debug("starting informer",
-			zap.String("key", details.Key),
+			zap.String("key", detail.Key()),
 		)
-		informer.Run(details.StopCh)
+		genericInformer.Informer().Run(detail.StopCh)
 	}()
 
-	Watches.Store(details.Key, details)
-	return details, nil
+	if err := appendResourceWatches(res.Key(), detail); err != nil {
+		return detail, err
+	}
+	return detail, nil
+}
+
+func appendResourceWatches(key string, detail *WatchDetail) error {
+	v, ok := ResourceWatches.Load(key)
+	if !ok {
+		detailMap := &sync.Map{}
+		detailMap.Store(detail.Key(), detail)
+		ResourceWatches.Store(key, detailMap)
+		return nil
+	}
+	detailMap, ok := v.(*sync.Map)
+	if !ok {
+		return fmt.Errorf("append, found key: %s, unable to cast to []*WatchDetail", key)
+	}
+	detailMap.Store(detail.Key(), detail)
+	ResourceWatches.Store(key, detailMap)
+	return nil
 }
 
 // WatchForResource returns a WatchDetail for the given Resource.
-func WatchForResource(r resource.Resource) (*WatchDetail, bool) {
-	v, ok := Watches.Load(r.Key())
+func WatchForResource(r resource.Resource, namespaces ...string) (ResourceLister, error) {
+	v, ok := ResourceWatches.Load(r.Key())
 	if !ok {
-		return nil, ok
+		return nil, fmt.Errorf("no watch found for resource: %+v", r)
 	}
-	w, wok := v.(*WatchDetail)
-	return w, wok
+
+	detailMap, ok := v.(*sync.Map)
+	if !ok {
+		return nil, fmt.Errorf("watch, found key:%s, unable to cast to []*WatchDetail", r.Key())
+	}
+
+	mapValues := []*WatchDetail{}
+	detailMap.Range(func(k, v interface{}) bool {
+		if v, ok := v.(*WatchDetail); ok {
+			mapValues = append(mapValues, v)
+		}
+		return true
+	})
+
+	wrappedWatches := []ResourceLister{}
+	if len(namespaces) == 0 { // no explict namespace, use all
+		logging.Logger.Info("no namespaces provided using NamespaceAll", zap.String("resource", r.Key()))
+		listers := []ResourceLister{}
+		for _, detail := range mapValues {
+			listers = append(listers, detail)
+		}
+		wrappedWatches = listers
+	} else if len(namespaces) == 1 && namespaces[0] == metav1.NamespaceAll { // only one namespace and it is all, use all
+		logging.Logger.Info("only NamespaceAll in namespace list", zap.String("resource", r.Key()))
+		listers := []ResourceLister{}
+		for _, detail := range mapValues {
+			listers = append(listers, detail)
+		}
+		wrappedWatches = listers
+	} else {
+		for _, ns := range namespaces {
+			if ns == metav1.NamespaceAll { // encountered NamespaceAll, use all
+				logging.Logger.Info("found NamespaceAll in namespace list", zap.String("resource", r.Key()), zap.String("namespace", ns))
+				listers := []ResourceLister{}
+				for _, detail := range mapValues {
+					listers = append(listers, detail)
+				}
+				wrappedWatches = listers
+				break
+			}
+			for _, wd := range mapValues {
+				if wd.Namespace() == metav1.NamespaceAll {
+					filterDetail := &FilteredWatchDetail{detail: wd, namespace: ns}
+					wrappedWatches = append(wrappedWatches, filterDetail)
+					logging.Logger.Info("found NamespaceAll creating filtered watch detail", zap.String("resource", r.Key()), zap.String("namespace", ns))
+					continue
+				}
+
+				if wd.Namespace() == ns {
+					wrappedWatches = append(wrappedWatches, wd)
+					logging.Logger.Info("found watcher for namespace", zap.String("resource", r.Key()), zap.String("namespace", ns))
+					continue
+				}
+			}
+		}
+	}
+
+	return &WrappedWatchDetails{listers: wrappedWatches}, nil
 }
 
-// WatchList returns the current count of watchers from the cache.
-// If onlyRunning is true, the count will only include running watchers.
-func WatchList(onlyRunning bool) []*WatchDetail {
-	watches := []*WatchDetail{}
-	Watches.Range(func(k, v interface{}) bool {
-		value, ok := v.(*WatchDetail)
+// WatchList returns the current list of watchers from the cache.
+// If onlyRunning is true, the list will only include running watchers.
+func WatchList(onlyRunning bool) []ResourceLister {
+	watches := []ResourceLister{}
+	ResourceWatches.Range(func(k, v interface{}) bool {
+		value, ok := v.(*sync.Map)
 		if !ok {
 			return false
 		}
-		if onlyRunning && !value.IsRunning() {
+		value.Range(func(k, v interface{}) bool {
+			detailValue, ok := v.(*WatchDetail)
+			if !ok {
+				return false
+			}
+			if onlyRunning && !detailValue.IsRunning() {
+				return true
+			}
+			watches = append(watches, detailValue)
 			return true
-		}
-		watches = append(watches, value)
+		})
 		return true
 	})
 	return watches
@@ -218,15 +334,22 @@ func WatchList(onlyRunning bool) []*WatchDetail {
 // If onlyRunning is true, the count will only include running watchers.
 func WatchCount(onlyRunning bool) int {
 	count := 0
-	Watches.Range(func(k, v interface{}) bool {
-		value, ok := v.(*WatchDetail)
+	ResourceWatches.Range(func(k, v interface{}) bool {
+		value, ok := v.(*sync.Map)
 		if !ok {
 			return false
 		}
-		if onlyRunning && !value.IsRunning() {
+		value.Range(func(k, v interface{}) bool {
+			detailValue, ok := v.(*WatchDetail)
+			if !ok {
+				return false
+			}
+			if onlyRunning && !detailValue.IsRunning() {
+				return true
+			}
+			count += 1
 			return true
-		}
-		count += 1
+		})
 		return true
 	})
 	return count

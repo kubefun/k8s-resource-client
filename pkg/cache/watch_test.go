@@ -81,12 +81,12 @@ func TestWatcherHelpers(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, wd)
 
-	v, ok := cache.WatchForResource(deploymentResource)
-	assert.True(t, ok)
+	v, err := cache.WatchForResource(deploymentResource)
+	assert.Nil(t, err)
 	assert.NotNil(t, v)
 
-	_, ok = cache.WatchForResource(resource.Resource{})
-	assert.False(t, ok)
+	_, err = cache.WatchForResource(resource.Resource{})
+	assert.EqualError(t, err, "")
 
 	podWatcher, err := w.Watch(context.TODO(), podResource, false)
 	assert.Nil(t, err)
