@@ -73,6 +73,8 @@ func TestFilteredWatchDetail(t *testing.T) {
 	assert.NotNil(t, obj)
 	assert.True(t, filteredInfo)
 
+	assert.Equal(t, lister.IsRunning(), 1)
+
 	logging.Logger, _ = zap.NewProduction()
 }
 
