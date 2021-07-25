@@ -213,14 +213,13 @@ func (w *Watcher) Watch(ctx context.Context, namespace string, res resource.Reso
 		})
 	}
 
-	informer := genericInformer.Informer()
-	informer.SetWatchErrorHandler(WatchErrorHandlerFactory(w.logger, detail.Key(), detail.StopCh))
+	detail.informer.Informer().SetWatchErrorHandler(WatchErrorHandlerFactory(w.logger, detail.Key(), detail.StopCh))
 
 	go func() {
 		w.logger.Debug("starting informer",
 			zap.String("key", detail.Key()),
 		)
-		informer.Run(detail.StopCh)
+		detail.informer.Informer().Run(detail.StopCh)
 	}()
 
 	if err := appendResourceWatches(res.Key(), detail); err != nil {

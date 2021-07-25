@@ -94,6 +94,27 @@ func TestResourceAccessChecksTrue(t *testing.T) {
 	assert.Contains(t, ra.String(), "default.apps.v1.deployment.watch: 1")
 }
 
+func TestResourceAccessContextClosed(t *testing.T) {
+	authFake := rtesting.SubjectAccessFake{}
+	authFake.CreateFn = func(fake *rtesting.SubjectAccessFake) (*v1.SelfSubjectAccessReview, error) {
+		ssar := &v1.SelfSubjectAccessReview{
+			Status: v1.SubjectAccessReviewStatus{
+				Allowed: true,
+			},
+		}
+		return ssar, nil
+	}
+
+	ctx, cancel := context.WithCancel(context.TODO())
+	cancel()
+
+	ra := resource.NewResourceAccess(ctx, authFake, "default", []resource.Resource{deploymentResource},
+		resource.WithLogger(zap.NewNop()),
+		resource.WithMinimumRBAC([]string{"list", "watch"}),
+	)
+	assert.NotNil(t, ra)
+}
+
 func TestResourceAccessChecksDenied(t *testing.T) {
 	authFake := rtesting.SubjectAccessFake{}
 	authFake.CreateFn = func(fake *rtesting.SubjectAccessFake) (*v1.SelfSubjectAccessReview, error) {
