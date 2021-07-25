@@ -11,30 +11,31 @@ import (
 )
 
 type WrappedWatchDetails struct {
-	listers []ResourceLister
+	Listers []ResourceLister
 }
 
 var _ ResourceLister = (*WrappedWatchDetails)(nil)
 
 func (w *WrappedWatchDetails) Key() string {
 	keys := []string{}
-	for _, detail := range w.listers {
+	for _, detail := range w.Listers {
 		keys = append(keys, detail.Key())
 	}
-	return strings.Join(keys, ",")
+	return strings.Join(uniqueStringSlice(keys), ",")
 }
 
 func (w *WrappedWatchDetails) Namespace() string {
 	namespaces := []string{}
-	for _, detail := range w.listers {
+	for _, detail := range w.Listers {
 		namespaces = append(namespaces, detail.Namespace())
 	}
-	return strings.Join(namespaces, ",")
+	return strings.Join(uniqueStringSlice(namespaces), ",")
 }
 
 func (w *WrappedWatchDetails) List(selector labels.Selector) ([]runtime.Object, error) {
+	errors := []string{}
 	objects := []runtime.Object{}
-	for _, detail := range w.listers {
+	for _, detail := range w.Listers {
 		listObjects, err := detail.List(selector)
 		if err != nil {
 			logging.Logger.Error("failed to list",
@@ -42,17 +43,21 @@ func (w *WrappedWatchDetails) List(selector labels.Selector) ([]runtime.Object, 
 				zap.String("namespace", detail.Namespace()),
 				zap.Error(err),
 			)
+			errors = append(errors, err.Error())
 			continue
 		}
 		objects = append(objects, listObjects...)
 	}
-	return objects, nil
+	if len(errors) == 0 {
+		return objects, nil
+	}
+	return objects, fmt.Errorf(strings.Join(errors, ","))
 }
 
 func (w *WrappedWatchDetails) Get(name string) (runtime.Object, error) {
 	var object runtime.Object
 	namespaces := []string{}
-	for _, detail := range w.listers {
+	for _, detail := range w.Listers {
 		getObj, err := detail.Get(name)
 		if err != nil {
 			namespaces = append(namespaces, detail.Namespace())
@@ -68,14 +73,26 @@ func (w *WrappedWatchDetails) Get(name string) (runtime.Object, error) {
 
 // Stop closes the StopCh shutting down the Drain and Informer loops.
 func (w *WrappedWatchDetails) Stop() {
-	for _, detail := range w.listers {
+	for _, detail := range w.Listers {
 		detail.Stop()
 	}
 }
 
 // Drain will get events off of the WatchDetail.Queue and send them to the provided channel.
 func (w *WrappedWatchDetails) Drain(ch chan<- interface{}, stopCh chan struct{}) {
-	for _, detail := range w.listers {
+	for _, detail := range w.Listers {
 		detail.Drain(ch, stopCh)
 	}
+}
+
+func uniqueStringSlice(nsSlice []string) []string {
+	keys := make(map[string]bool)
+	list := []string{}
+	for _, entry := range nsSlice {
+		if _, value := keys[entry]; !value {
+			keys[entry] = true
+			list = append(list, entry)
+		}
+	}
+	return list
 }

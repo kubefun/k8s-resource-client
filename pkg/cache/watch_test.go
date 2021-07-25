@@ -30,7 +30,7 @@ func TestWatchNamespaceMismatch(t *testing.T) {
 	w, err := cache.NewWatcher(context.TODO(), cache.WithDynamicClient(dynFake), cache.WithNamespace("default"))
 	assert.Nil(t, err)
 
-	_, err = w.Watch(context.TODO(), resource.Resource{Namespace: "test"}, false)
+	_, err = w.Watch(context.TODO(), "test", resource.Resource{}, false)
 	assert.EqualError(t, err, "unable to create watch, resource namespace:test does not match watcher namespace:default")
 }
 
@@ -53,7 +53,7 @@ func TestWatcherQueueEvents(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, w)
 
-	wd, err := w.Watch(context.TODO(), deploymentResource, true)
+	wd, err := w.Watch(context.TODO(), "default", deploymentResource, true)
 	assert.Nil(t, err)
 	assert.NotNil(t, wd)
 
@@ -65,7 +65,9 @@ func TestWatcherQueueEvents(t *testing.T) {
 	handler.OnUpdate("", "")
 }
 
-func TestWatcherHelpers(t *testing.T) {
+func TestResourceWatchesBadKey(t *testing.T) {
+	cache.ResourceWatches = &sync.Map{}
+
 	dsifFake := wtesting.NewFakeDynamicSharedInformerFactory()
 	dynFake := ctesting.FakeDynamicClient{}
 
@@ -77,7 +79,26 @@ func TestWatcherHelpers(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, w)
 
-	wd, err := w.Watch(context.TODO(), deploymentResource, false)
+	cache.ResourceWatches.Store("Version.Kind", "bad-string-should-be-map")
+	_, err = cache.WatchForResource(resource.Resource{GroupVersionKind: schema.GroupVersionKind{Version: "Version", Kind: "Kind"}})
+	assert.EqualError(t, err, "watch, found key:Version.Kind, unable to cast to *sync.Map")
+}
+
+func TestWatcherHelpers(t *testing.T) {
+	cache.ResourceWatches = &sync.Map{}
+
+	dsifFake := wtesting.NewFakeDynamicSharedInformerFactory()
+	dynFake := ctesting.FakeDynamicClient{}
+
+	w, err := cache.NewWatcher(context.TODO(),
+		cache.WithDynamicClient(dynFake),
+		cache.WithDynamicSharedInformerFactory(dsifFake),
+		cache.WithLogger(zap.NewNop()),
+	)
+	assert.Nil(t, err)
+	assert.NotNil(t, w)
+
+	wd, err := w.Watch(context.TODO(), "default", deploymentResource, false)
 	assert.Nil(t, err)
 	assert.NotNil(t, wd)
 
@@ -86,10 +107,23 @@ func TestWatcherHelpers(t *testing.T) {
 	assert.NotNil(t, v)
 
 	_, err = cache.WatchForResource(resource.Resource{})
-	assert.EqualError(t, err, "")
+	assert.EqualError(t, err, "no watch found for resource: {GroupVersionKind:/, Kind= APIResource:{Name: SingularName: Namespaced:false Group: Version: Kind: Verbs:[] ShortNames:[] Categories:[] StorageVersionHash:}}")
 
-	podWatcher, err := w.Watch(context.TODO(), podResource, false)
+	podWatcher, err := w.Watch(context.TODO(), "default", podResource, false)
 	assert.Nil(t, err)
+
+	v, err = cache.WatchForResource(podResource, "")
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	assert.NotNil(t, v)
+
+	v, err = cache.WatchForResource(podResource, "default", "")
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	assert.NotNil(t, v)
+
 	watchers := cache.WatchList(false)
 	assert.Len(t, watchers, 2)
 	assert.Equal(t, cache.WatchCount(false), 2)
@@ -122,9 +156,9 @@ func TestWatchStopAll(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, w)
 
-	wd1, err := w.Watch(context.TODO(), resource.Resource{Namespace: "foo"}, false)
+	wd1, err := w.Watch(context.TODO(), "foo", resource.Resource{}, false)
 	assert.Nil(t, err)
-	wd2, err := w.Watch(context.TODO(), resource.Resource{Namespace: "bar"}, false)
+	wd2, err := w.Watch(context.TODO(), "bar", resource.Resource{}, false)
 	assert.Nil(t, err)
 
 	cache.WatcherStop()
@@ -219,16 +253,15 @@ func TestWatchErrorHandlerFactory(t *testing.T) {
 }
 
 func TestWatcherHelpersBad(t *testing.T) {
-	cache.Watches = &sync.Map{}
-	cache.Watches.Store("test", "test")
+	cache.ResourceWatches = &sync.Map{}
+	cache.ResourceWatches.Store("test", "test")
 	assert.Equal(t, 0, cache.WatchCount(false))
 	assert.Len(t, cache.WatchList(false), 0)
 	cache.WatcherStop()
-	cache.Watches = &sync.Map{}
+	cache.ResourceWatches = &sync.Map{}
 }
 
 var deploymentResource = resource.Resource{
-	Namespace:        "default",
 	GroupVersionKind: schema.GroupVersionKind{Version: "v1", Group: "apps", Kind: "Deployment"},
 	APIResource: metav1.APIResource{
 		Name:         "deployments",
@@ -242,7 +275,6 @@ var deploymentResource = resource.Resource{
 }
 
 var podResource = resource.Resource{
-	Namespace:        "default",
 	GroupVersionKind: schema.GroupVersionKind{Version: "v1", Group: "", Kind: "Pod"},
 	APIResource: metav1.APIResource{
 		Name:         "pods",

@@ -60,15 +60,15 @@ func main() {
 	fmt.Printf("cluster resource count: %d\n", len(cResources))
 
 	// No resources provided this will init an empty access cache, all checks will be false
-	if err := r6eClient.AutoDiscoverAccess(ctx, client); err != nil {
+	if err := r6eClient.AutoDiscoverAccess(ctx, client, ""); err != nil {
 		panic(err)
 	}
 
 	// Update the access cache for the first namespaced resource and check if we can list/watch it.
-	r6eClient.UpdateResourceAccess(ctx, client, nsResources[0])
-	fmt.Println(fmt.Sprintf("check list,watch access for %v: ", nsResources[0]), r6eCache.Access.AllowedAll(nsResources[0], []string{"list", "watch"}))
+	r6eClient.UpdateResourceAccess(ctx, client, nsResources[0], []string{""})
+	fmt.Println(fmt.Sprintf("check list,watch access for %v: ", nsResources[0]), r6eCache.Access.AllowedAll("", nsResources[0], []string{"list", "watch"}))
 
-	r6eClient.WatchAllResources(ctx, client, false)
+	r6eClient.WatchAllResources(ctx, client, false, []string{""})
 
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
@@ -79,7 +79,7 @@ func main() {
 
 	for {
 		fmt.Println("active watcher count:", cache.WatchCount(true))
-		v, ok := cache.Watches.Load("v1.Pod")
+		v, ok := cache.ResourceWatches.Load("v1.Pod")
 		if !ok {
 			fmt.Println("not found")
 		}
@@ -90,14 +90,14 @@ func main() {
 
 		fmt.Println("pod counts by namespaces")
 		for _, ns := range cache.Namespaces {
-			objs, err := watcher.Lister.ByNamespace(ns).List(labels.Everything())
+			objs, err := watcher.List(labels.Everything())
 			if err != nil {
 				panic(err)
 			}
 			fmt.Printf("total pods in namespace %s: %d\n", ns, len(objs))
 		}
 
-		objs, err := watcher.Lister.List(labels.Everything())
+		objs, err := watcher.List(labels.Everything())
 		if err != nil {
 			panic(err)
 		}

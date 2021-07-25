@@ -48,7 +48,7 @@ func Echo(ws *websocket.Conn) {
 	eventCh := make(chan interface{})
 	stopCh := make(chan struct{})
 
-	pods, err := r6eCache.WatchForResource(podRes)
+	pods, err := r6eCache.WatchForResource(podRes, "default")
 	if err != nil {
 		logging.Logger.Warn("pod watcher", zap.Error(err))
 	} else {
@@ -154,11 +154,11 @@ func main() {
 		panic(err)
 	}
 
-	namespaces := []string{"default", ""}
-	if err := r6eClient.UpdateResourceAccess(ctx, client, podRes, namespaces); err != nil {
-		panic(err)
-	}
-	// r6eClient.WatchAllResources(ctx, client, true, "")
+	namespaces := []string{"default", metav1.NamespaceAll}
+	// if err := r6eClient.UpdateResourceAccess(ctx, client, podRes, namespaces); err != nil {
+	// 	panic(err)
+	// }
+	r6eClient.WatchAllResources(ctx, client, true, namespaces)
 	for _, ns := range namespaces {
 		println(ns)
 		if r6eCache.Access.AllowedAll(ns, podRes, []string{"watch", "list"}) {

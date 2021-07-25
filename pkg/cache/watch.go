@@ -248,7 +248,7 @@ func WatchForResource(r resource.Resource, namespaces ...string) (ResourceLister
 
 	detailMap, ok := v.(*sync.Map)
 	if !ok {
-		return nil, fmt.Errorf("watch, found key:%s, unable to cast to []*WatchDetail", r.Key())
+		return nil, fmt.Errorf("watch, found key:%s, unable to cast to *sync.Map", r.Key())
 	}
 
 	mapValues := []*WatchDetail{}
@@ -287,7 +287,7 @@ func WatchForResource(r resource.Resource, namespaces ...string) (ResourceLister
 			}
 			for _, wd := range mapValues {
 				if wd.Namespace() == metav1.NamespaceAll {
-					filterDetail := &FilteredWatchDetail{detail: wd, namespace: ns}
+					filterDetail := &FilteredWatchDetail{Detail: wd, namespace: ns}
 					wrappedWatches = append(wrappedWatches, filterDetail)
 					logging.Logger.Info("found NamespaceAll creating filtered watch detail", zap.String("resource", r.Key()), zap.String("namespace", ns))
 					continue
@@ -302,7 +302,7 @@ func WatchForResource(r resource.Resource, namespaces ...string) (ResourceLister
 		}
 	}
 
-	return &WrappedWatchDetails{listers: wrappedWatches}, nil
+	return &WrappedWatchDetails{Listers: wrappedWatches}, nil
 }
 
 // WatchList returns the current list of watchers from the cache.
