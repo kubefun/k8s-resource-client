@@ -5,6 +5,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
+// FilteredWatcheDetail is a thin wrapped around a WatchDetail
+// used when a NamespaceAll watcher is available it scopes that
+// WatchDetail List and Get calls to a single namespace.
 type FilteredWatchDetail struct {
 	Detail    *WatchDetail
 	namespace string

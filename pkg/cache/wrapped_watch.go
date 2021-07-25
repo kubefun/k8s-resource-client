@@ -10,6 +10,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
+// WrappedWatchDetails combines multiple WatchDetail in to a single call
+// to allow for simple multi-namespace List and Get calls.
+// As a result of this, the other ResourceLister calls have been encoded to
+// be multi-value as a comma seprated string. The responsiblilty of parsing these
+// values is the callers.
 type WrappedWatchDetails struct {
 	Listers []ResourceLister
 }
