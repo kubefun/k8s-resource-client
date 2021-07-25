@@ -28,8 +28,8 @@ func TestStatusIntAsBool(t *testing.T) {
 }
 
 func TestResourceVerbKey(t *testing.T) {
-	verbKey := resourceVerbKey("pod", "watch")
-	assert.Equal(t, "pod.watch", verbKey)
+	verbKey := resourceVerbKey("default", "pod", "watch")
+	assert.Equal(t, "default.pod.watch", verbKey)
 }
 
 func TestResourceAccessTypeCast(t *testing.T) {
@@ -47,9 +47,9 @@ func TestResourceAccessTypeCast(t *testing.T) {
 
 	ra.access.Store("key", 1)
 
-	key := resourceVerbKey(deploymentResource.Key(), "list")
+	key := resourceVerbKey("default", deploymentResource.Key(), "list")
 	ra.access.Store(key, "test")
-	ra.Allowed(deploymentResource, "list")
+	ra.Allowed("default", deploymentResource, "list")
 	assert.True(t, failCast)
 
 	r := ra.String()
@@ -67,7 +67,6 @@ func TestResourceAccessStringBadKey(t *testing.T) {
 }
 
 var deploymentResource = Resource{
-	Namespace:        "default",
 	GroupVersionKind: schema.GroupVersionKind{Version: "v1", Group: "apps", Kind: "deployment"},
 	APIResource: metav1.APIResource{
 		Name:         "deployments",

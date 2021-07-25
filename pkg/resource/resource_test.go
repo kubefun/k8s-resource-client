@@ -18,7 +18,7 @@ import (
 )
 
 func TestResourceListNilClient(t *testing.T) {
-	_, err := resource.ResourceList(context.TODO(), nil, nil, "")
+	_, err := resource.ResourceList(context.TODO(), nil, nil, false)
 	assert.EqualError(t, err, "discoveryClient is nil")
 }
 
@@ -26,7 +26,7 @@ func TestResourceListClusterScoped(t *testing.T) {
 
 	client := rtesting.ServerResourcesFake{}
 
-	r, err := resource.ResourceList(context.TODO(), nil, client, "")
+	r, err := resource.ResourceList(context.TODO(), nil, client, false)
 	assert.Nil(t, err)
 
 	assert.Len(t, r, 1)
@@ -40,23 +40,23 @@ func TestResourceListNamespaceScoped(t *testing.T) {
 
 	client := rtesting.ServerResourcesFake{Namespaced: true}
 
-	r, err := resource.ResourceList(context.TODO(), nil, client, "default")
+	r, err := resource.ResourceList(context.TODO(), nil, client, true)
 	assert.Nil(t, err)
 
 	assert.Len(t, r, 1)
 	resource := r[0]
 
 	assert.Equal(t, resource.GroupVersionKind, schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "deployment"})
-	assert.Equal(t, resource.Key(), "default.apps.v1.deployment")
+	assert.Equal(t, resource.Key(), "apps.v1.deployment")
 	resource.GroupVersionKind.Group = ""
-	assert.Equal(t, resource.Key(), "default.v1.deployment")
+	assert.Equal(t, resource.Key(), "v1.deployment")
 }
 
 func TestResourceListEmpty(t *testing.T) {
 
 	client := rtesting.ServerResourcesFake{Namespaced: true, Empty: true}
 
-	r, err := resource.ResourceList(context.TODO(), nil, client, "default")
+	r, err := resource.ResourceList(context.TODO(), nil, client, true)
 	assert.Nil(t, err)
 
 	assert.Len(t, r, 0)
@@ -66,7 +66,7 @@ func TestResourceListNoVerbs(t *testing.T) {
 
 	client := rtesting.ServerResourcesFake{Namespaced: true, NoVerbs: true}
 
-	r, err := resource.ResourceList(context.TODO(), nil, client, "default")
+	r, err := resource.ResourceList(context.TODO(), nil, client, true)
 	assert.Nil(t, err)
 
 	assert.Len(t, r, 0)
@@ -96,7 +96,7 @@ func TestResourceListBadGroupVersion(t *testing.T) {
 		return nil
 	})))
 
-	_, err := resource.ResourceList(context.TODO(), logger, client, "default")
+	_, err := resource.ResourceList(context.TODO(), logger, client, true)
 	assert.Nil(t, err)
 	assert.True(t, groupVersionWarning)
 }
@@ -107,7 +107,7 @@ func TestResourceListErr(t *testing.T) {
 		return nil, fmt.Errorf("bad lookup err")
 	}
 
-	_, err := resource.ResourceList(context.TODO(), nil, client, "default")
+	_, err := resource.ResourceList(context.TODO(), nil, client, true)
 	assert.EqualError(t, err, "get preferred resources: bad lookup err")
 }
 
@@ -137,7 +137,7 @@ func TestResourceListPartialListErr(t *testing.T) {
 		return nil
 	})))
 
-	_, err := resource.ResourceList(context.TODO(), logger, client, "default")
+	_, err := resource.ResourceList(context.TODO(), logger, client, true)
 	assert.Nil(t, err)
 	assert.True(t, resourceListWarning)
 }

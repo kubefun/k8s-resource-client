@@ -22,14 +22,14 @@ func TestNewResourceAccessDoneCtx(t *testing.T) {
 	ctx, cfn := context.WithCancel(context.TODO())
 	cfn()
 
-	resource.NewResourceAccess(ctx, nil, []resource.Resource{{Namespace: "default"}})
+	resource.NewResourceAccess(ctx, nil, "default", []resource.Resource{})
 }
 
 func TestNewResourceAccessOptions(t *testing.T) {
 	ctx, cfn := context.WithCancel(context.TODO())
 	cfn()
 
-	resource.NewResourceAccess(ctx, nil, []resource.Resource{{Namespace: "default"}},
+	resource.NewResourceAccess(ctx, nil, "default", []resource.Resource{},
 		resource.WithLogger(zap.NewNop()),
 		resource.WithMinimumRBAC([]string{"list", "watch"}),
 	)
@@ -37,14 +37,14 @@ func TestNewResourceAccessOptions(t *testing.T) {
 
 func TestResourceAccessChecksFalse(t *testing.T) {
 	authFake := rtesting.SubjectAccessFake{}
-	ra := resource.NewResourceAccess(context.TODO(), authFake, []resource.Resource{deploymentResource},
+	ra := resource.NewResourceAccess(context.TODO(), authFake, "default", []resource.Resource{deploymentResource},
 		resource.WithLogger(zap.NewNop()),
 		resource.WithMinimumRBAC([]string{"list", "watch"}),
 	)
 	assert.NotNil(t, ra)
-	assert.False(t, ra.Allowed(deploymentResource, "list"))
-	assert.False(t, ra.AllowedAll(deploymentResource, []string{"list", "watch"}))
-	assert.False(t, ra.AllowedAny(deploymentResource, []string{"list", "watch"}))
+	assert.False(t, ra.Allowed("default", deploymentResource, "list"))
+	assert.False(t, ra.AllowedAll("default", deploymentResource, []string{"list", "watch"}))
+	assert.False(t, ra.AllowedAny("default", deploymentResource, []string{"list", "watch"}))
 
 	assert.Contains(t, ra.String(), "default.apps.v1.deployment.list: 3")
 	assert.Contains(t, ra.String(), "default.apps.v1.deployment.watch: 3")
@@ -62,11 +62,11 @@ func TestResourceAccessChecksNotFound(t *testing.T) {
 		return nil
 	})))
 
-	ra := resource.NewResourceAccess(context.TODO(), authFake, []resource.Resource{},
+	ra := resource.NewResourceAccess(context.TODO(), authFake, "default", []resource.Resource{},
 		resource.WithLogger(logger),
 		resource.WithMinimumRBAC([]string{"list", "watch"}),
 	)
-	ra.Allowed(deploymentResource, "list")
+	ra.Allowed("default", deploymentResource, "list")
 	assert.True(t, notFound)
 }
 
@@ -81,17 +81,38 @@ func TestResourceAccessChecksTrue(t *testing.T) {
 		return ssar, nil
 	}
 
-	ra := resource.NewResourceAccess(context.TODO(), authFake, []resource.Resource{deploymentResource},
+	ra := resource.NewResourceAccess(context.TODO(), authFake, "default", []resource.Resource{deploymentResource},
 		resource.WithLogger(zap.NewNop()),
 		resource.WithMinimumRBAC([]string{"list", "watch"}),
 	)
 	assert.NotNil(t, ra)
-	assert.True(t, ra.Allowed(deploymentResource, "list"))
-	assert.True(t, ra.AllowedAll(deploymentResource, []string{"list", "watch"}))
-	assert.True(t, ra.AllowedAny(deploymentResource, []string{"list", "watch"}))
+	assert.True(t, ra.Allowed("default", deploymentResource, "list"))
+	assert.True(t, ra.AllowedAll("default", deploymentResource, []string{"list", "watch"}))
+	assert.True(t, ra.AllowedAny("default", deploymentResource, []string{"list", "watch"}))
 
 	assert.Contains(t, ra.String(), "default.apps.v1.deployment.list: 1")
 	assert.Contains(t, ra.String(), "default.apps.v1.deployment.watch: 1")
+}
+
+func TestResourceAccessContextClosed(t *testing.T) {
+	authFake := rtesting.SubjectAccessFake{}
+	authFake.CreateFn = func(fake *rtesting.SubjectAccessFake) (*v1.SelfSubjectAccessReview, error) {
+		ssar := &v1.SelfSubjectAccessReview{
+			Status: v1.SubjectAccessReviewStatus{
+				Allowed: true,
+			},
+		}
+		return ssar, nil
+	}
+
+	ctx, cancel := context.WithCancel(context.TODO())
+	cancel()
+
+	ra := resource.NewResourceAccess(ctx, authFake, "default", []resource.Resource{deploymentResource},
+		resource.WithLogger(zap.NewNop()),
+		resource.WithMinimumRBAC([]string{"list", "watch"}),
+	)
+	assert.NotNil(t, ra)
 }
 
 func TestResourceAccessChecksDenied(t *testing.T) {
@@ -114,27 +135,26 @@ func TestResourceAccessChecksDenied(t *testing.T) {
 		return nil
 	})))
 
-	ra := resource.NewResourceAccess(context.TODO(), authFake, []resource.Resource{deploymentResource},
+	ra := resource.NewResourceAccess(context.TODO(), authFake, "default", []resource.Resource{deploymentResource},
 		resource.WithLogger(logger),
 		resource.WithMinimumRBAC([]string{"list", "watch"}),
 	)
 	assert.NotNil(t, ra)
 	assert.True(t, rbacDenied)
 
-	assert.False(t, ra.Allowed(deploymentResource, "list"))
-	assert.False(t, ra.AllowedAll(deploymentResource, []string{"list", "watch"}))
-	assert.False(t, ra.AllowedAny(deploymentResource, []string{"list", "watch"}))
+	assert.False(t, ra.Allowed("default", deploymentResource, "list"))
+	assert.False(t, ra.AllowedAll("default", deploymentResource, []string{"list", "watch"}))
+	assert.False(t, ra.AllowedAny("default", deploymentResource, []string{"list", "watch"}))
 
 	assert.Contains(t, ra.String(), "default.apps.v1.deployment.list: 0")
 	assert.Contains(t, ra.String(), "default.apps.v1.deployment.watch: 0")
 
 	deploymentResource.APIResource.Namespaced = false
-	ra.Update(context.TODO(), authFake, deploymentResource, "patch")
+	ra.Update(context.TODO(), authFake, "default", deploymentResource, "patch")
 	assert.Contains(t, ra.String(), "apps.v1.deployment.patch: 2")
 }
 
 var deploymentResource = resource.Resource{
-	Namespace:        "default",
 	GroupVersionKind: schema.GroupVersionKind{Version: "v1", Group: "apps", Kind: "deployment"},
 	APIResource: metav1.APIResource{
 		Name:         "deployments",

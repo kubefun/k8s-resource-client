@@ -12,21 +12,24 @@ import (
 
 var AutoAccessVerbs = metav1.Verbs{"list", "watch"}
 
-func AutoDiscoverAccess(ctx context.Context, client *Client, resources ...resource.Resource) error {
+func AutoDiscoverAccess(ctx context.Context, client *Client, namespace string, resources ...resource.Resource) error {
 	cache.Access = resource.NewResourceAccess(
 		ctx,
 		client.subjectAccess,
+		namespace,
 		resources,
 		resource.WithMinimumRBAC(AutoAccessVerbs),
 	)
 	return nil
 }
 
-func UpdateResourceAccess(ctx context.Context, client *Client, resource resource.Resource) error {
+func UpdateResourceAccess(ctx context.Context, client *Client, res resource.Resource, namespaces []string) error {
 	if cache.Access == nil {
 		return fmt.Errorf("nil cache.Access")
 	}
-	cache.Access.Update(ctx, client.subjectAccess, resource, "list")
-	cache.Access.Update(ctx, client.subjectAccess, resource, "watch")
+	for _, ns := range namespaces {
+		cache.Access.Update(ctx, client.subjectAccess, ns, res, "list")
+		cache.Access.Update(ctx, client.subjectAccess, ns, res, "watch")
+	}
 	return nil
 }

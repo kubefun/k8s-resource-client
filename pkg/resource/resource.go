@@ -23,7 +23,6 @@ const (
 )
 
 type Resource struct {
-	Namespace        string
 	GroupVersionKind schema.GroupVersionKind
 	APIResource      metav1.APIResource
 }
@@ -37,20 +36,15 @@ func (r Resource) GroupVersionResource() schema.GroupVersionResource {
 }
 
 func (r Resource) Key() string {
-	key := ""
-	if r.Namespace != "" {
-		key = fmt.Sprintf("%s.", r.Namespace)
-	}
-
 	gvk := r.GroupVersionKind
 	if gvk.Group == "" {
-		return fmt.Sprintf("%s%s.%s", key, gvk.Version, gvk.Kind)
+		return fmt.Sprintf("%s.%s", gvk.Version, gvk.Kind)
 	}
-	return fmt.Sprintf("%s%s.%s.%s", key, gvk.Group, gvk.Version, gvk.Kind)
+	return fmt.Sprintf("%s.%s.%s", gvk.Group, gvk.Version, gvk.Kind)
 }
 
 // ResourceList creates a list of Resource objects using the Discovery client.
-func ResourceList(_ context.Context, logger *zap.Logger, client discovery.ServerResourcesInterface, namespace string) ([]Resource, error) {
+func ResourceList(_ context.Context, logger *zap.Logger, client discovery.ServerResourcesInterface, namespaced bool) ([]Resource, error) {
 	if client == nil {
 		return nil, fmt.Errorf("discoveryClient is nil")
 	}
@@ -60,7 +54,7 @@ func ResourceList(_ context.Context, logger *zap.Logger, client discovery.Server
 	}
 
 	var resourceList func() ([]*metav1.APIResourceList, error)
-	if namespace == "" {
+	if namespaced {
 		resourceList = client.ServerPreferredResources
 	} else {
 		resourceList = client.ServerPreferredNamespacedResources
@@ -94,7 +88,6 @@ func ResourceList(_ context.Context, logger *zap.Logger, client discovery.Server
 			}
 
 			result = append(result, Resource{
-				Namespace: namespace,
 				GroupVersionKind: schema.GroupVersionKind{
 					Version: groupVersion.Version,
 					Group:   groupVersion.Group,
@@ -108,17 +101,17 @@ func ResourceList(_ context.Context, logger *zap.Logger, client discovery.Server
 	return result, nil
 }
 
-func resourceVerbKey(key, verb string) string {
-	return fmt.Sprintf("%s.%s", key, verb)
+func resourceVerbKey(namespace, key, verb string) string {
+	return fmt.Sprintf("%s.%s.%s", namespace, key, verb)
 }
 
 // ResourceAccess provides a way to check if a given resource and verb are allowed to be performed by
 // the current Kubernetes client.
 type ResourceAccess interface {
-	Update(context.Context, authClient.SelfSubjectAccessReviewInterface, Resource, string)
-	Allowed(resource Resource, verb string) bool
-	AllowedAll(resource Resource, verbs []string) bool
-	AllowedAny(resource Resource, verbs []string) bool
+	Update(context.Context, authClient.SelfSubjectAccessReviewInterface, string, Resource, string)
+	Allowed(namespace string, resource Resource, verb string) bool
+	AllowedAll(namespace string, resource Resource, verbs []string) bool
+	AllowedAny(namespace string, resource Resource, verbs []string) bool
 	String() string
 }
 
@@ -126,11 +119,12 @@ var _ ResourceAccess = (*resourceAccess)(nil)
 
 // NewResourceAccess provides a ResourceAccess object with an access map popluated from issuing SelfSubjectAccessReview
 // requests for the list of resources and verbs provided.
-func NewResourceAccess(ctx context.Context, client authClient.SelfSubjectAccessReviewInterface, resources []Resource, options ...ResourceAccessOption) *resourceAccess {
+func NewResourceAccess(ctx context.Context, client authClient.SelfSubjectAccessReviewInterface, namespace string, resources []Resource, options ...ResourceAccessOption) *resourceAccess {
 	ra := &resourceAccess{
 		access:       sync.Map{},
 		logger:       zap.NewNop(),
 		minimumVerbs: metav1.Verbs{"list", "watch"},
+		namespace:    namespace,
 	}
 
 	for _, o := range options {
@@ -151,7 +145,7 @@ func NewResourceAccess(ctx context.Context, client authClient.SelfSubjectAccessR
 					return
 				default:
 				}
-				ra.Update(ctx, client, r, verb)
+				ra.Update(ctx, client, namespace, r, verb)
 			}
 		}()
 	}
@@ -165,11 +159,12 @@ type resourceAccess struct {
 	access       sync.Map
 	logger       *zap.Logger
 	minimumVerbs metav1.Verbs
+	namespace    string
 }
 
 // Allowed checks if the given verb is allowed for the GVK.
-func (r *resourceAccess) Allowed(resource Resource, verb string) bool {
-	key := resourceVerbKey(resource.Key(), verb)
+func (r *resourceAccess) Allowed(namespace string, resource Resource, verb string) bool {
+	key := resourceVerbKey(namespace, resource.Key(), verb)
 
 	v, found := r.access.Load(key)
 	if !found {
@@ -191,9 +186,9 @@ func (r *resourceAccess) Allowed(resource Resource, verb string) bool {
 }
 
 // AllowedAll checks if all of the given verbs are allowed for the GVK.
-func (r *resourceAccess) AllowedAll(resource Resource, verbs []string) bool {
+func (r *resourceAccess) AllowedAll(namespace string, resource Resource, verbs []string) bool {
 	for _, verb := range verbs {
-		if !r.Allowed(resource, verb) {
+		if !r.Allowed(namespace, resource, verb) {
 			return false
 		}
 	}
@@ -201,21 +196,18 @@ func (r *resourceAccess) AllowedAll(resource Resource, verbs []string) bool {
 }
 
 // AllowedAny checks if any of the given verbs are allowed for the GVK.
-func (r *resourceAccess) AllowedAny(resource Resource, verbs []string) bool {
+func (r *resourceAccess) AllowedAny(namespace string, resource Resource, verbs []string) bool {
 	for _, verb := range verbs {
-		if r.Allowed(resource, verb) {
+		if r.Allowed(namespace, resource, verb) {
 			return true
 		}
 	}
 	return false
 }
 
-func (ra *resourceAccess) Update(ctx context.Context, client authClient.SelfSubjectAccessReviewInterface, resource Resource, verb string) {
-	if !resource.APIResource.Namespaced {
-		resource.Namespace = ""
-	}
+func (ra *resourceAccess) Update(ctx context.Context, client authClient.SelfSubjectAccessReviewInterface, namespace string, resource Resource, verb string) {
 	apiVerbs := sets.NewString(resource.APIResource.Verbs...)
-	key := resourceVerbKey(resource.Key(), verb)
+	key := resourceVerbKey(namespace, resource.Key(), verb)
 
 	if !apiVerbs.Has(verb) {
 		ra.access.Store(key, Unused)
@@ -228,12 +220,13 @@ func (ra *resourceAccess) Update(ctx context.Context, client authClient.SelfSubj
 				Verb:      verb,
 				Resource:  resource.APIResource.Name,
 				Group:     resource.GroupVersionKind.Group,
-				Namespace: resource.Namespace,
+				Namespace: namespace,
 			},
 		},
 	}
 
 	if result, err := client.Create(ctx, sar, metav1.CreateOptions{}); err != nil {
+		ra.logger.Error("error SelfSubjectAccessReview", zap.Error(err))
 		ra.access.Store(key, Error)
 	} else {
 		if result.Status.Allowed {

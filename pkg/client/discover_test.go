@@ -21,7 +21,7 @@ func TestAutoDiscoverAccess(t *testing.T) {
 	assert.Nil(t, cache.Access)
 
 	fakeClient := ctesting.NewFakeClient(nil, false)
-	client.AutoDiscoverAccess(context.TODO(), fakeClient)
+	client.AutoDiscoverAccess(context.TODO(), fakeClient, "")
 
 	assert.NotNil(t, cache.Access)
 }
@@ -31,12 +31,12 @@ func TestUpdateResourceAccess(t *testing.T) {
 
 	r := resource.Resource{}
 	fakeClient := ctesting.NewFakeClient(nil, false)
-	err := client.UpdateResourceAccess(context.TODO(), fakeClient, r)
+	err := client.UpdateResourceAccess(context.TODO(), fakeClient, r, []string{""})
 	assert.EqualError(t, err, "nil cache.Access")
 
-	client.AutoDiscoverAccess(context.TODO(), fakeClient)
-	client.UpdateResourceAccess(context.TODO(), fakeClient, r)
-	err = client.UpdateResourceAccess(context.TODO(), fakeClient, r)
+	client.AutoDiscoverAccess(context.TODO(), fakeClient, "")
+	client.UpdateResourceAccess(context.TODO(), fakeClient, r, []string{""})
+	err = client.UpdateResourceAccess(context.TODO(), fakeClient, r, []string{""})
 	assert.Nil(t, err)
 
 }
@@ -92,7 +92,7 @@ func TestResourceListForNamespace(t *testing.T) {
 		t.FailNow()
 	}
 
-	resources, err := client.ResourceListForNamespace(context.TODO(), c, "default")
+	resources, err := client.ResourceList(context.TODO(), c, true)
 	assert.Nil(t, err)
 	assert.Len(t, resources, 1)
 }

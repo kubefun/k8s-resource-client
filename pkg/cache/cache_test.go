@@ -24,6 +24,5 @@ func TestNewResourceCache(t *testing.T) {
 }
 
 var testResource = resource.Resource{
-	Namespace:        "default",
 	GroupVersionKind: schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "deployment"},
 }
