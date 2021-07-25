@@ -82,11 +82,11 @@ func TestWrappedWatchDetails(t *testing.T) {
 	_, err = wrapped.Get("test-obj")
 	assert.EqualError(t, err, "unable to find object test-obj in any namespace of: [default different-ns]")
 
-	assert.True(t, podWd.IsRunning())
-	assert.True(t, deployWd.IsRunning())
+	assert.Equal(t, podWd.IsRunning(), 1)
+	assert.Equal(t, deployWd.IsRunning(), 1)
 	wrapped.Stop()
-	assert.False(t, podWd.IsRunning())
-	assert.False(t, deployWd.IsRunning())
+	assert.Equal(t, podWd.IsRunning(), 0)
+	assert.Equal(t, deployWd.IsRunning(), 0)
 
 	logging.Logger, _ = zap.NewProduction()
 }
@@ -96,10 +96,10 @@ func TestWrappedWatchDrainStopMain(t *testing.T) {
 	stopCh := make(chan struct{})
 
 	w1 := &cache.WatchDetail{StopCh: make(chan struct{}), Queue: workqueue.New(), Logger: zap.NewNop()}
-	assert.True(t, w1.IsRunning())
+	assert.Equal(t, w1.IsRunning(), 1)
 
 	w2 := &cache.WatchDetail{StopCh: make(chan struct{}), Queue: workqueue.New(), Logger: zap.NewNop()}
-	assert.True(t, w2.IsRunning())
+	assert.Equal(t, w2.IsRunning(), 1)
 
 	wrapped := &cache.WrappedWatchDetails{Listers: []cache.ResourceLister{w1, w2}}
 	wrapped.Drain(eventCh, stopCh)
@@ -110,11 +110,15 @@ func TestWrappedWatchDrainStopMain(t *testing.T) {
 	j := "string2"
 	w2.Queue.Add(j)
 
+	values := []string{}
 	s := <-eventCh
-	assert.Equal(t, "string2", s.(string))
+	values = append(values, s.(string))
 
 	s = <-eventCh
-	assert.Equal(t, "string1", s.(string))
+	values = append(values, s.(string))
+
+	assert.Contains(t, values, "string1")
+	assert.Contains(t, values, "string2")
 
 	wrapped.Stop()
 	wrapped.Drain(eventCh, stopCh)

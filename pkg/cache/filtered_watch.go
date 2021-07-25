@@ -35,3 +35,7 @@ func (w *FilteredWatchDetail) Get(name string) (runtime.Object, error) {
 func (w *FilteredWatchDetail) Stop() {
 	w.Detail.Stop()
 }
+
+func (w *FilteredWatchDetail) IsRunning() int {
+	return w.Detail.IsRunning()
+}

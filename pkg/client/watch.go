@@ -10,16 +10,16 @@ import (
 
 // WatchResource creates a watch for the Resource in the provided namespaces.
 // To watch across all namespaces you can pass in metav1.NamespaceAll.
-func WatchResource(ctx context.Context, client *Client, res resource.Resource, queueEvents bool, namespaces []string) ([]*cache.WatchDetail, error) {
+func WatchResource(ctx context.Context, client *Client, res resource.Resource, queueEvents bool, namespaces []string) ([]cache.ResourceLister, error) {
 	if hasNamespaceAll(namespaces) {
 		w, err := client.watcher.Watch(ctx, "", res, queueEvents)
 		if err != nil {
 			return nil, err
 		}
-		return []*cache.WatchDetail{w}, nil
+		return []cache.ResourceLister{w}, nil
 	}
 
-	watchDetails := make([]*cache.WatchDetail, len(namespaces))
+	watchDetails := make([]cache.ResourceLister, len(namespaces))
 	for i, ns := range namespaces {
 		client.Logger.Info("creating watch",
 			zap.String("resource", res.Key()),

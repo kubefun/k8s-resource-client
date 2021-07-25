@@ -18,4 +18,6 @@ type ResourceLister interface {
 	Namespace() string
 	// Key
 	Key() string
+	// IsRunning returns the count of underlying Watchers that are running for the ResourceLister
+	IsRunning() int
 }

@@ -137,11 +137,11 @@ func TestWatcherHelpers(t *testing.T) {
 func TestWatchIsRunning(t *testing.T) {
 	stopCh := make(chan struct{})
 	w := &cache.WatchDetail{StopCh: stopCh}
-	assert.True(t, w.IsRunning())
+	assert.Equal(t, w.IsRunning(), 1)
 
 	close(stopCh)
 
-	assert.False(t, w.IsRunning())
+	assert.Equal(t, w.IsRunning(), 0)
 }
 
 func TestWatchStopAll(t *testing.T) {
@@ -163,8 +163,8 @@ func TestWatchStopAll(t *testing.T) {
 
 	cache.WatcherStop()
 
-	assert.False(t, wd1.IsRunning())
-	assert.False(t, wd2.IsRunning())
+	assert.Equal(t, wd1.IsRunning(), 0)
+	assert.Equal(t, wd2.IsRunning(), 0)
 }
 
 func TestWatchDrainStopMain(t *testing.T) {
@@ -172,7 +172,7 @@ func TestWatchDrainStopMain(t *testing.T) {
 	stopCh := make(chan struct{})
 
 	w := &cache.WatchDetail{StopCh: make(chan struct{}), Queue: workqueue.New(), Logger: zap.NewNop()}
-	assert.True(t, w.IsRunning())
+	assert.Equal(t, w.IsRunning(), 1)
 
 	w.Drain(eventCh, stopCh)
 
@@ -190,7 +190,7 @@ func TestWatchDrainStopLocal(t *testing.T) {
 	stopCh := make(chan struct{})
 
 	w := &cache.WatchDetail{StopCh: make(chan struct{}), Queue: workqueue.New(), Logger: zap.NewNop()}
-	assert.True(t, w.IsRunning())
+	assert.Equal(t, w.IsRunning(), 1)
 
 	w.Drain(eventCh, stopCh)
 
@@ -208,7 +208,7 @@ func TestWatchDrainShutdown(t *testing.T) {
 	stopCh := make(chan struct{})
 
 	w := &cache.WatchDetail{StopCh: make(chan struct{}), Queue: workqueue.New(), Logger: zap.NewNop()}
-	assert.True(t, w.IsRunning())
+	assert.Equal(t, w.IsRunning(), 1)
 
 	i := "shutdown"
 	w.Queue.Add(i)

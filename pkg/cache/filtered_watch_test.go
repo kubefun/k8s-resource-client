@@ -81,7 +81,7 @@ func TestFilteredWatchDetailDrain(t *testing.T) {
 	stopCh := make(chan struct{})
 
 	w1 := &cache.WatchDetail{StopCh: make(chan struct{}), Queue: workqueue.New(), Logger: zap.NewNop()}
-	assert.True(t, w1.IsRunning())
+	assert.Equal(t, w1.IsRunning(), 1)
 
 	filtered := &cache.FilteredWatchDetail{Detail: w1}
 	filtered.Drain(eventCh, stopCh)
@@ -94,5 +94,5 @@ func TestFilteredWatchDetailDrain(t *testing.T) {
 
 	filtered.Stop()
 	filtered.Drain(eventCh, stopCh)
-	assert.False(t, w1.IsRunning())
+	assert.Equal(t, w1.IsRunning(), 0)
 }

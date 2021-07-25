@@ -67,18 +67,18 @@ func (w *WatchDetail) Get(name string) (runtime.Object, error) {
 }
 
 // IsRunning returns true if the Informer loop for the WatchDetail is running.
-func (w *WatchDetail) IsRunning() bool {
+func (w *WatchDetail) IsRunning() int {
 	select {
 	case <-w.StopCh:
-		return false
+		return 0
 	default:
-		return true
+		return 1
 	}
 }
 
 // Stop closes the StopCh shutting down the Drain and Informer loops.
 func (w *WatchDetail) Stop() {
-	if w.IsRunning() {
+	if w.IsRunning() == 1 {
 		close(w.StopCh)
 	}
 }
@@ -167,10 +167,16 @@ func WatcherStop() {
 // Watch creates a new WatchDetail and starts the watch loop for the given Resource
 // If queueEvents is true, all events for the resource will be added to the WatcheDetail.Queue
 // To handle the events use WatchDetail.Drain
-func (w *Watcher) Watch(ctx context.Context, namespace string, res resource.Resource, queueEvents bool) (*WatchDetail, error) {
+func (w *Watcher) Watch(ctx context.Context, namespace string, res resource.Resource, queueEvents bool) (ResourceLister, error) {
 	if w.namespace != "" && namespace != w.namespace {
 		return nil, fmt.Errorf("unable to create watch, resource namespace:%s does not match watcher namespace:%s", namespace, w.namespace)
 	}
+
+	lister, err := WatchForResource(res, namespace)
+	if err == nil {
+		return lister, nil
+	}
+
 	genericInformer := w.informerFactory.ForResource(res.GroupVersionResource())
 
 	detail := &WatchDetail{
@@ -207,13 +213,14 @@ func (w *Watcher) Watch(ctx context.Context, namespace string, res resource.Reso
 		})
 	}
 
-	genericInformer.Informer().SetWatchErrorHandler(WatchErrorHandlerFactory(w.logger, detail.Key(), detail.StopCh))
+	informer := genericInformer.Informer()
+	informer.SetWatchErrorHandler(WatchErrorHandlerFactory(w.logger, detail.Key(), detail.StopCh))
 
 	go func() {
 		w.logger.Debug("starting informer",
 			zap.String("key", detail.Key()),
 		)
-		genericInformer.Informer().Run(detail.StopCh)
+		informer.Run(detail.StopCh)
 	}()
 
 	if err := appendResourceWatches(res.Key(), detail); err != nil {
@@ -319,7 +326,7 @@ func WatchList(onlyRunning bool) []ResourceLister {
 			if !ok {
 				return false
 			}
-			if onlyRunning && !detailValue.IsRunning() {
+			if onlyRunning && detailValue.IsRunning() == 0 {
 				return true
 			}
 			watches = append(watches, detailValue)
@@ -344,7 +351,7 @@ func WatchCount(onlyRunning bool) int {
 			if !ok {
 				return false
 			}
-			if onlyRunning && !detailValue.IsRunning() {
+			if onlyRunning && detailValue.IsRunning() == 0 {
 				return true
 			}
 			count += 1

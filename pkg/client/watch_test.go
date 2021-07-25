@@ -5,9 +5,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
+
 	"github.com/wwitzel3/k8s-resource-client/pkg/client"
 	"github.com/wwitzel3/k8s-resource-client/pkg/resource"
-	"go.uber.org/zap"
 )
 
 func TestWatchResource(t *testing.T) {

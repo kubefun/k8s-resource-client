@@ -85,6 +85,13 @@ func (w *WrappedWatchDetails) Drain(ch chan<- interface{}, stopCh chan struct{})
 	}
 }
 
+func (w *WrappedWatchDetails) IsRunning() int {
+	count := 0
+	for _, detail := range w.Listers {
+		count += detail.IsRunning()
+	}
+	return count
+}
 func uniqueStringSlice(nsSlice []string) []string {
 	keys := make(map[string]bool)
 	list := []string{}
