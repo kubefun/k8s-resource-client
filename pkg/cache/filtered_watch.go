@@ -42,3 +42,11 @@ func (w *FilteredWatchDetail) Stop() {
 func (w *FilteredWatchDetail) IsRunning() int {
 	return w.Detail.IsRunning()
 }
+
+func (w *FilteredWatchDetail) HandledEventCount() int {
+	return w.Detail.HandledEventCount()
+}
+
+func (w *FilteredWatchDetail) UnhandledEventCount() int {
+	return w.Detail.UnhandledEventCount()
+}

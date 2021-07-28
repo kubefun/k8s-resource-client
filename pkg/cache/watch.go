@@ -32,8 +32,9 @@ type WatchDetail struct {
 	queueEvents bool
 	Queue       *workqueue.Type
 
-	namespace string
-	informer  informers.GenericInformer
+	namespace         string
+	informer          informers.GenericInformer
+	handledEventCount int
 }
 
 var _ ResourceLister = (*WatchDetail)(nil)
@@ -99,7 +100,16 @@ func (w *WatchDetail) Drain(ch chan<- interface{}, stopCh chan struct{}) {
 				}
 				w.Logger.Debug("processing queue")
 				ch <- i
+				w.handledEventCount += 1
 			}
 		}
 	}()
+}
+
+func (w *WatchDetail) UnhandledEventCount() int {
+	return w.Queue.Len()
+}
+
+func (w *WatchDetail) HandledEventCount() int {
+	return w.handledEventCount
 }

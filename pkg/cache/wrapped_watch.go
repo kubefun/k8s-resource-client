@@ -97,6 +97,23 @@ func (w *WrappedWatchDetails) IsRunning() int {
 	}
 	return count
 }
+
+func (w *WrappedWatchDetails) HandledEventCount() int {
+	count := 0
+	for _, detail := range w.Listers {
+		count += detail.HandledEventCount()
+	}
+	return count
+}
+
+func (w *WrappedWatchDetails) UnhandledEventCount() int {
+	count := 0
+	for _, detail := range w.Listers {
+		count += detail.HandledEventCount()
+	}
+	return count
+}
+
 func uniqueStringSlice(nsSlice []string) []string {
 	keys := make(map[string]bool)
 	list := []string{}

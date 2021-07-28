@@ -1,0 +1,58 @@
+<clr-datagrid [(clrDgSingleSelected)]="selected">
+  <clr-dg-action-bar>
+    <div class="btn-group">
+      <button
+        type="button"
+        class="btn btn-sm"
+        (click)="onStart()"
+        [disabled]="
+          selected == null || (selected != null && selected.isRunning)
+        "
+      >
+        <cds-icon shape="play"></cds-icon> Start
+      </button>
+    </div>
+    <div class="btn-group">
+      <button
+        type="button"
+        class="btn btn-sm"
+        (click)="onStop()"
+        [disabled]="
+          selected == null || (selected != null && !selected.isRunning)
+        "
+      >
+        <cds-icon shape="stop"></cds-icon> Stop
+      </button>
+    </div>
+  </clr-dg-action-bar>
+
+  <clr-dg-column>Running</clr-dg-column>
+  <clr-dg-column>Resource</clr-dg-column>
+  <clr-dg-column>Namespace</clr-dg-column>
+  <clr-dg-column>Queue</clr-dg-column>
+  <clr-dg-column [clrDgField]="'handledEventCount'" [clrDgColType]="'number'"
+    >Handled Event Count</clr-dg-column
+  >
+  <clr-dg-column [clrDgField]="'unhandledEventCount'" [clrDgColType]="'number'"
+    >Unhandled Event Count</clr-dg-column
+  >
+
+  <clr-dg-row *clrDgItems="let watch of watchers" [clrDgItem]="watch">
+    <clr-dg-cell>{{ watch.isRunning }}</clr-dg-cell>
+    <clr-dg-cell>{{ watch.resource }}</clr-dg-cell>
+    <clr-dg-cell>{{ watcherNamespace(watch.namespace) }}</clr-dg-cell>
+    <clr-dg-cell>{{ watch.queue }}</clr-dg-cell>
+    <clr-dg-cell>{{ watch.handledEventCount }}</clr-dg-cell>
+    <clr-dg-cell>{{ watch.unhandledEventCount }}</clr-dg-cell>
+  </clr-dg-row>
+
+  <clr-dg-footer>
+    <clr-dg-pagination #pagination [clrDgPageSize]="10">
+      <clr-dg-page-size [clrPageSizeOptions]="[10, 20, 50, 100]"
+        >Watchers per page</clr-dg-page-size
+      >
+      {{ pagination.firstItem + 1 }} - {{ pagination.lastItem + 1 }} of
+      {{ pagination.totalItems }} watchers
+    </clr-dg-pagination>
+  </clr-dg-footer>
+</clr-datagrid>
