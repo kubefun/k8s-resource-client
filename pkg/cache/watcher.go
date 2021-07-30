@@ -294,7 +294,7 @@ func WatchErrorHandlerFactory(logger *zap.Logger, key string, stopCh chan<- stru
 				zap.Error(err),
 			)
 			close(stopCh)
-		case apierrors.IsForbidden(err) || strings.Contains(err.Error(), "forbidden"):
+		case apierrors.IsForbidden(err) || (err != nil && strings.Contains(err.Error(), "forbidden")):
 			logger.Error("watch closed with forbidden",
 				zap.String("name", key),
 				zap.Error(err),
