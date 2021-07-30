@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -14,7 +15,6 @@ import (
 	"github.com/gorilla/websocket"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -22,6 +22,8 @@ import (
 	r6eClient "github.com/wwitzel3/k8s-resource-client/pkg/client"
 	"github.com/wwitzel3/k8s-resource-client/pkg/resource"
 )
+
+var currentNamespace = metav1.NamespaceAll
 
 func main() {
 	var kubeconfig *string
@@ -32,9 +34,11 @@ func main() {
 	}
 
 	autoDiscoverNamespaces := flag.Bool("discover-namespaces", false, "auto discover namespaces")
+	namespace := flag.String("namespace", metav1.NamespaceAll, "namespace to use, defaults to all")
 
 	flag.Parse()
 
+	currentNamespace = *namespace
 	// use the current context in kubeconfig
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
@@ -62,21 +66,22 @@ func main() {
 		panic(err)
 	}
 
-	nsResources := r6eCache.Resources.Get("namespace")
+	nsResources := r6eCache.Resources.Get(r6eCache.NamespacedResources)
 	fmt.Printf("namespace resource count: %d\n", len(nsResources))
 
-	cResources := r6eCache.Resources.Get("cluster")
+	cResources := r6eCache.Resources.Get(r6eCache.ClusterScopedResources)
 	fmt.Printf("cluster resource count: %d\n", len(cResources))
 
-	if err := r6eClient.AutoDiscoverAccess(ctx, client, metav1.NamespaceAll, nsResources...); err != nil {
+	if err := r6eClient.AutoDiscoverAccess(ctx, client, currentNamespace, nsResources...); err != nil {
 		panic(err)
 	}
 
-	namespaces := []string{metav1.NamespaceAll}
+	namespaces := []string{currentNamespace}
 	r6eClient.WatchAllResources(ctx, client, true, namespaces)
 
 	http.HandleFunc("/ws", handler)
 	http.HandleFunc("/stats", stats)
+	http.HandleFunc("/resources", resources)
 	if err := http.ListenAndServe("127.0.0.1:1234", nil); err != nil {
 		log.Fatal("ListenAndServe:", err)
 	}
@@ -90,13 +95,69 @@ func homeDir() string {
 }
 
 type Stats struct {
-	Total   int
-	Running int
-	Stopped int
+	Total   int `json:"total"`
+	Running int `json:"running"`
+	Stopped int `json:"stopped"`
 }
 
 func stats(writer http.ResponseWriter, request *http.Request) {
+	total := r6eCache.WatchCount(false)
+	running := r6eCache.WatchCount(true)
 
+	stats := Stats{
+		Total:   total,
+		Running: running,
+		Stopped: total - running,
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	writer.Header().Set("Access-Control-Allow-Origin", "*")
+	writer.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	encoder := json.NewEncoder(writer)
+	err := encoder.Encode(stats)
+	if err != nil {
+		writer.WriteHeader(http.StatusInternalServerError)
+		writer.Write([]byte(err.Error()))
+	}
+}
+
+type Resource struct {
+	Group   string `json:"group"`
+	Kind    string `json:"kind"`
+	Version string `json:"version"`
+	List    bool   `json:"list"`
+	Watch   bool   `json:"watch"`
+}
+
+func resources(writer http.ResponseWriter, request *http.Request) {
+	resourceScope := r6eCache.ClusterScopedResources
+	scope := request.URL.Query().Get("scope")
+	if scope == "namespace" {
+		resourceScope = r6eCache.NamespacedResources
+	}
+
+	resources := []Resource{}
+	for _, r := range r6eCache.Resources.Get(resourceScope) {
+		canList := r6eCache.Access.Allowed(currentNamespace, r, "list")
+		canWatch := r6eCache.Access.Allowed(currentNamespace, r, "watch")
+
+		resources = append(resources, Resource{
+			List:    canList,
+			Watch:   canWatch,
+			Group:   r.GroupVersionKind.Group,
+			Version: r.GroupVersionKind.Version,
+			Kind:    r.GroupVersionKind.Kind,
+		})
+	}
+	writer.Header().Set("Content-Type", "application/json")
+	writer.Header().Set("Access-Control-Allow-Origin", "*")
+	writer.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	encoder := json.NewEncoder(writer)
+	err := encoder.Encode(resources)
+	if err != nil {
+		writer.WriteHeader(http.StatusInternalServerError)
+		writer.Write([]byte(err.Error()))
+	}
 }
 
 type Watcher struct {
@@ -135,8 +196,9 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	eventCh := make(chan interface{})
 	stopCh := make(chan struct{})
 
-	eventWatcher, err := r6eCache.WatchForResource(eventResource, metav1.NamespaceAll)
+	eventWatcher, err := r6eCache.WatchForResource(podResource, currentNamespace)
 	if err != nil {
+		println(err.Error())
 		return
 	}
 
@@ -155,13 +217,13 @@ func (c *Client) writePump() {
 	c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 
-	c.sendUpdate()
-	for range c.eventCh {
-		c.sendUpdate()
+	c.sendUpdate(nil)
+	for e := range c.eventCh {
+		c.sendUpdate(e)
 	}
 }
 
-func (c *Client) sendUpdate() {
+func (c *Client) sendUpdate(e interface{}) {
 	watchers := []Watcher{}
 	for _, w := range r6eCache.WatchList(false) {
 		watchers = append(watchers, Watcher{
@@ -171,6 +233,7 @@ func (c *Client) sendUpdate() {
 			HandledEventCount:   w.HandledEventCount(),
 			UnhandledEventCount: w.UnhandledEventCount(),
 			Queue:               true,
+			LastEvent:           fmt.Sprintf("%+v", e),
 		})
 	}
 
@@ -184,22 +247,22 @@ func (c *Client) sendUpdate() {
 		return watchers[i].Resource < watchers[j].Resource
 	})
 
-	s, _ := json.CaseSensitiveJSONIterator().Marshal(watchers)
 	w, err := c.conn.NextWriter(websocket.TextMessage)
 	if err != nil {
 		c.watcher.Stop()
 		return
 	}
-	_, err = w.Write(s)
+
+	err = json.NewEncoder(w).Encode(watchers)
 	if err != nil {
 		c.watcher.Stop()
 		return
 	}
 }
 
-var eventResource = resource.Resource{
+var podResource = resource.Resource{
 	GroupVersionKind: schema.GroupVersionKind{
 		Version: "v1",
-		Kind:    "Event",
+		Kind:    "Pod",
 	},
 }

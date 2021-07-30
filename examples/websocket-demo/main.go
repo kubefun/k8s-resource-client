@@ -143,7 +143,7 @@ func main() {
 		panic(err)
 	}
 
-	nsResources := r6eCache.Resources.Get("namespace")
+	nsResources := r6eCache.Resources.Get(r6eCache.NamespacedResources)
 	fmt.Printf("namespace resource count: %d\n", len(nsResources))
 
 	cResources := r6eCache.Resources.Get("cluster")

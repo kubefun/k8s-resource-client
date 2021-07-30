@@ -26,7 +26,9 @@
     </div>
   </clr-dg-action-bar>
 
-  <clr-dg-column>Running</clr-dg-column>
+  <clr-dg-column [clrDgField]="'isRunning'" [clrDgColType]="'number'"
+    >Running</clr-dg-column
+  >
   <clr-dg-column>Resource</clr-dg-column>
   <clr-dg-column>Namespace</clr-dg-column>
   <clr-dg-column>Queue</clr-dg-column>

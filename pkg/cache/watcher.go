@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 
 	"go.uber.org/zap"
@@ -44,12 +45,6 @@ func NewWatcher(ctx context.Context, options ...WatcherOption) (*Watcher, error)
 		return nil, fmt.Errorf("dynamic client nil, use WithDynamicClient option")
 	}
 
-	if w.namespace != "" && w.informerFactory == nil {
-		w.informerFactory = dynamicinformer.NewFilteredDynamicSharedInformerFactory(w.dclient, DefaultResyncDuration, w.namespace, nil)
-	} else if w.informerFactory == nil {
-		w.informerFactory = dynamicinformer.NewDynamicSharedInformerFactory(w.dclient, DefaultResyncDuration)
-	}
-
 	return w, nil
 }
 
@@ -64,6 +59,12 @@ func (w *Watcher) Watch(ctx context.Context, namespace string, res resource.Reso
 	lister, err := WatchForResource(res, namespace)
 	if err == nil {
 		return lister, nil
+	}
+
+	if namespace != "" && w.informerFactory == nil {
+		w.informerFactory = dynamicinformer.NewFilteredDynamicSharedInformerFactory(w.dclient, DefaultResyncDuration, namespace, nil)
+	} else if w.informerFactory == nil {
+		w.informerFactory = dynamicinformer.NewDynamicSharedInformerFactory(w.dclient, DefaultResyncDuration)
 	}
 
 	genericInformer := w.informerFactory.ForResource(res.GroupVersionResource())
@@ -293,7 +294,14 @@ func WatchErrorHandlerFactory(logger *zap.Logger, key string, stopCh chan<- stru
 				zap.Error(err),
 			)
 			close(stopCh)
+		case apierrors.IsForbidden(err) || strings.Contains(err.Error(), "forbidden"):
+			logger.Error("watch closed with forbidden",
+				zap.String("name", key),
+				zap.Error(err),
+			)
+			close(stopCh)
 		default:
+			close(stopCh)
 			return
 		}
 	}

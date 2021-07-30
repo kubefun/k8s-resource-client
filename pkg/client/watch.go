@@ -35,7 +35,7 @@ func WatchResource(ctx context.Context, client *Client, res resource.Resource, q
 }
 
 func WatchAllResources(ctx context.Context, client *Client, queueEvents bool, namespaces []string) {
-	for _, res := range cache.Resources.Get("namespace") {
+	for _, res := range cache.Resources.Get(cache.NamespacedResources) {
 		WatchResource(ctx, client, res, queueEvents, namespaces)
 	}
 }

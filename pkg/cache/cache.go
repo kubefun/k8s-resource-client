@@ -10,6 +10,13 @@ var Resources *ResourceCache
 var Namespaces []string
 var Access resource.ResourceAccess
 
+type ResourceKey string
+
+const (
+	NamespacedResources    = ResourceKey("namespace")
+	ClusterScopedResources = ResourceKey("cluster")
+)
+
 func init() {
 	Resources = NewResourceCache()
 	Namespaces = make([]string, 0)
@@ -18,7 +25,7 @@ func init() {
 
 func NewResourceCache() *ResourceCache {
 	return &ResourceCache{
-		_map: &sync.Map{}, // key:string, value:[]subjectaccess.Resource
+		_map: &sync.Map{}, // key:ResourceKey, value:[]subjectaccess.Resource
 	}
 }
 
@@ -26,7 +33,7 @@ type ResourceCache struct {
 	_map *sync.Map
 }
 
-func (r *ResourceCache) Add(key string, resources ...resource.Resource) {
+func (r *ResourceCache) Add(key ResourceKey, resources ...resource.Resource) {
 	resources = unique(resources)
 
 	v, loaded := r._map.LoadOrStore(key, resources)
@@ -38,7 +45,8 @@ func (r *ResourceCache) Add(key string, resources ...resource.Resource) {
 	}
 }
 
-func (r *ResourceCache) Get(key string) []resource.Resource {
+// Get resturns all the resources for the given key
+func (r *ResourceCache) Get(key ResourceKey) []resource.Resource {
 	v, loaded := r._map.Load(key)
 	if !loaded {
 		return []resource.Resource{}

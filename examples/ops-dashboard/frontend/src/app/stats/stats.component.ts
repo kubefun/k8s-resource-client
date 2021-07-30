@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { Stats } from '../stats';
+import { StatsService } from '../stats.service';
 
 @Component({
   selector: 'app-stats',
@@ -7,12 +8,22 @@ import { Stats } from '../stats';
   styleUrls: ['./stats.component.sass'],
 })
 export class StatsComponent implements OnInit {
-  stat: Stats = {
-    id: 1,
-    name: 'Windstorm',
-  };
+  stats: Stats = {} as Stats;
 
-  constructor() {}
+  constructor(private statsService: StatsService) {
+    this.showStats();
+  }
+
+  showStats() {
+    this.statsService.getStats().subscribe(
+      (data: Stats) =>
+        (this.stats = {
+          total: data.total,
+          stopped: data.stopped,
+          running: data.running,
+        })
+    );
+  }
 
   ngOnInit(): void {}
 }

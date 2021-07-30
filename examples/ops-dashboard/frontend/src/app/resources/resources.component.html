@@ -1,0 +1,103 @@
+<h3>Cluster Scoped Resources</h3>
+<clr-datagrid>
+  <clr-dg-column>Group</clr-dg-column>
+  <clr-dg-column [clrDgField]="'kind'" [clrDgColType]="'string'"
+    >Kind</clr-dg-column
+  >
+  <clr-dg-column>Version</clr-dg-column>
+  <clr-dg-column>List</clr-dg-column>
+  <clr-dg-column>Watch</clr-dg-column>
+
+  <clr-dg-row
+    *clrDgItems="let resource of clusterResources"
+    [clrDgItem]="resource"
+  >
+    <clr-dg-cell>{{ resource.group }}</clr-dg-cell>
+    <clr-dg-cell>{{ resource.kind }}</clr-dg-cell>
+    <clr-dg-cell>{{ resource.version }}</clr-dg-cell>
+    <clr-dg-cell>
+      <cds-icon
+        *ngIf="resource.list; else elseBlock"
+        shape="check"
+        size="md"
+        status="success"
+      ></cds-icon>
+      <ng-template #elseBlock
+        ><cds-icon shape="times" size="md" status="danger"></cds-icon
+      ></ng-template>
+    </clr-dg-cell>
+    <clr-dg-cell>
+      <cds-icon
+        *ngIf="resource.watch; else elseBlock"
+        shape="check"
+        size="md"
+        status="success"
+      ></cds-icon>
+      <ng-template #elseBlock
+        ><cds-icon shape="times" size="md" status="danger"></cds-icon
+      ></ng-template>
+    </clr-dg-cell>
+  </clr-dg-row>
+
+  <clr-dg-footer>
+    <clr-dg-pagination #pg [clrDgPageSize]="10">
+      <clr-dg-page-size [clrPageSizeOptions]="[10, 20, 50, 100]"
+        >Resources per page</clr-dg-page-size
+      >
+      {{ pg.firstItem + 1 }} - {{ pg.lastItem + 1 }} of
+      {{ pg.totalItems }} resources
+    </clr-dg-pagination>
+  </clr-dg-footer>
+</clr-datagrid>
+
+<h3>Namespaced Resources</h3>
+<clr-datagrid>
+  <clr-dg-column>Group</clr-dg-column>
+  <clr-dg-column [clrDgField]="'kind'" [clrDgColType]="'string'"
+    >Kind</clr-dg-column
+  >
+  <clr-dg-column>Version</clr-dg-column>
+  <clr-dg-column>List</clr-dg-column>
+  <clr-dg-column>Watch</clr-dg-column>
+
+  <clr-dg-row
+    *clrDgItems="let resource of namespacedResources"
+    [clrDgItem]="resource"
+  >
+    <clr-dg-cell>{{ resource.group }}</clr-dg-cell>
+    <clr-dg-cell>{{ resource.kind }}</clr-dg-cell>
+    <clr-dg-cell>{{ resource.version }}</clr-dg-cell>
+    <clr-dg-cell>
+      <cds-icon
+        *ngIf="resource.list; else elseBlock"
+        shape="check"
+        size="md"
+        status="success"
+      ></cds-icon>
+      <ng-template #elseBlock
+        ><cds-icon shape="times" size="md" status="danger"></cds-icon
+      ></ng-template>
+    </clr-dg-cell>
+    <clr-dg-cell>
+      <cds-icon
+        *ngIf="resource.watch; else elseBlock"
+        shape="check"
+        size="md"
+        status="success"
+      ></cds-icon>
+      <ng-template #elseBlock
+        ><cds-icon shape="times" size="md" status="danger"></cds-icon
+      ></ng-template>
+    </clr-dg-cell>
+  </clr-dg-row>
+
+  <clr-dg-footer>
+    <clr-dg-pagination #pagination [clrDgPageSize]="10">
+      <clr-dg-page-size [clrPageSizeOptions]="[10, 20, 50, 100]"
+        >Resources per page</clr-dg-page-size
+      >
+      {{ pagination.firstItem + 1 }} - {{ pagination.lastItem + 1 }} of
+      {{ pagination.totalItems }} resources
+    </clr-dg-pagination>
+  </clr-dg-footer>
+</clr-datagrid>

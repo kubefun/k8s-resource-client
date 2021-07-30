@@ -1,4 +1,5 @@
 export interface Stats {
-  id: number;
-  name: string;
+  total: number;
+  running: number;
+  stopped: number;
 }

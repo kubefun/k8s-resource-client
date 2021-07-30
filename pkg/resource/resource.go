@@ -55,9 +55,9 @@ func ResourceList(_ context.Context, logger *zap.Logger, client discovery.Server
 
 	var resourceList func() ([]*metav1.APIResourceList, error)
 	if namespaced {
-		resourceList = client.ServerPreferredResources
-	} else {
 		resourceList = client.ServerPreferredNamespacedResources
+	} else {
+		resourceList = client.ServerPreferredResources
 	}
 
 	resources, err := resourceList()

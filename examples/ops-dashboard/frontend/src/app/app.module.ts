@@ -9,12 +9,24 @@ import { WatchersComponent } from './watchers/watchers.component';
 import { HttpClientModule } from '@angular/common/http';
 
 import '@cds/core/icon/register.js';
-import { ClarityIcons, playIcon, stopIcon } from '@cds/core/icon';
+import {
+  checkIcon,
+  ClarityIcons,
+  playIcon,
+  stopIcon,
+  timesIcon,
+} from '@cds/core/icon';
+import { ResourcesComponent } from './resources/resources.component';
 
-ClarityIcons.addIcons(playIcon, stopIcon);
+ClarityIcons.addIcons(playIcon, stopIcon, checkIcon, timesIcon);
 
 @NgModule({
-  declarations: [AppComponent, StatsComponent, WatchersComponent],
+  declarations: [
+    AppComponent,
+    StatsComponent,
+    WatchersComponent,
+    ResourcesComponent,
+  ],
   imports: [
     BrowserModule,
     ClarityModule,
